@@ -115,7 +115,7 @@ char **ALTSecAllowedExt = NULL;
 char **ALTSecSharedProps = NULL;
 char **ALTSecSharedSels = NULL;
 char **ALTSecTrustedClients = NULL;
-int ALTSecPermanent = 0;
+int ALTSecPermanent = 1;
 int ALTSecStrict = 1;
 
 /* Similar from X11 Security extension */
