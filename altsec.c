@@ -45,6 +45,9 @@ enum {
 int loglevel = 0;
 
 int trusted_uid = -1;
+#if __linux__
+char *root_userns = NULL;
+#endif /* __linux__ */
 
 /* A Window Manager is trusted client that by altsec design is allowed
  * almost anything Xorg can provide. Altsec keeps its pid because WM can create
@@ -306,6 +309,8 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
     char real_path[PATH_MAX];
     char root_path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/root") */
     char real_root_path[PATH_MAX]; /* We do not care about the full path */
+    char userns_path[64]; /* 64 bytes should be enough for sizeof("/proc/%d/ns/user") */
+    char userns[32]; /* 32 bytes should be enough for "/proc/%d/ns/user" value */
     ssize_t len;
 
     snprintf(root_path, sizeof(root_path), "/proc/%d/root", pid);
@@ -324,6 +329,19 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
     /* Chrooted clients are not trusted. */
     if (strcmp(real_root_path, "/") != 0)
 	return 0;
+
+    if (root_userns != NULL) {
+	snprintf(userns_path, sizeof(userns_path), "/proc/%d/ns/user", pid);
+	if ((len = readlink(userns_path, userns, sizeof(userns))) < 0)
+	    return 0;
+	userns[len] = '\0';
+
+	DEBUG("is_proc_client_trusted: userns_path = %s, userns = %s\n",
+		userns_path, userns);
+
+	if (strcmp(root_userns, userns) != 0)
+	    return 0;
+    }
 
     snprintf(real_path, sizeof(real_path), "/proc/%d/exe", pid);
 
@@ -487,6 +505,19 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
     if (trusted_clients != NULL)
 	construct_trusted_clients_list(trusted_clients);
+
+#if __linux__
+    /* Assume that you cannot run Xorg in non-root user namespace. */
+    char buf[PATH_MAX];
+    ssize_t nslink_size;
+    if ((nslink_size = readlink("/proc/self/ns/user", buf, PATH_MAX)) != -1) {
+	buf[nslink_size] = '\0';
+	root_userns = strdup(buf);
+	DEBUG("altsecSetup: root namespace value is %s\n", root_userns);
+    } else {
+	DEBUG("altsecSetup: could not obtain a value of root namespace\n");
+    }
+#endif /* __linux__ */
 
 exit:
     if (!ret) {
