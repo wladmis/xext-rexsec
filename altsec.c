@@ -116,7 +116,7 @@ char **ALTSecSharedProps = NULL;
 char **ALTSecSharedSels = NULL;
 char **ALTSecTrustedClients = NULL;
 int ALTSecPermanent = 0;
-int ALTSecStrict = 0;
+int ALTSecStrict = 1;
 
 /* Similar from X11 Security extension */
 const Mask ALTSecResourceMask =
