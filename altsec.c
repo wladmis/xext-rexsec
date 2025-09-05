@@ -687,7 +687,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    }
 		}
 
-		if (!ALTSecStrict && creds->euid == trusted_uid)
+		if (!ALTSecStrict && (creds->euid == trusted_uid))
 		    pClientPriv->is_trusted = 1;
 
 		FreeLocalClientCreds(creds);
@@ -797,7 +797,9 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 
     if (clients[cid] != NULL) {
 	obj = dixLookupPrivate(&clients[cid]->devPrivates, asec_client_key);
-	if ((subj->uid == obj->uid) || ((rec->access_mode | allowed) == allowed))
+	if ((!ALTSecStrict && (subj->uid == obj->uid))
+		|| (subj->pid == obj->pid)
+		|| ((rec->access_mode | allowed) == allowed))
 	    return;
     }
 
@@ -983,7 +985,7 @@ passthru:
 		    (subj->pid == wobj->pid ||
 		     subj->pid == obj->pid))
 		/* allow */;
-	    else if (!ALTSecStrict && subj->uid == wobj->uid)
+	    else if (!ALTSecStrict && (subj->uid == wobj->uid))
 		/* allow */;
 	    else if (rec->client == serverClient)
 		/* allow */;
@@ -1003,7 +1005,7 @@ passthru:
     } else if (rec->access_mode & allowed
 	    || rec->client->index == client->index
 	    || (obj->wm && (rec->access_mode & DixReadAccess))
-	    || subj->uid == obj->uid
+	    || (!ALTSecStrict && (subj->uid == obj->uid))
 	    || subj->pid == obj->pid
 	    || subj->pid == wobj->pid
 	    || subj->is_trusted
@@ -1073,7 +1075,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 
 	obj = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
 
-	if (!ALTSecStrict && subj->uid == obj->uid)
+	if (!ALTSecStrict && (subj->uid == obj->uid))
 	    return;
 
 	if (subj->pid == obj->pid)
@@ -1149,7 +1151,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	if (wClient(rec->pWin) == serverClient)
 	    continue;
 
-	if ((!ALTSecStrict && subj->uid == obj->uid)
+	if ((!ALTSecStrict && (subj->uid == obj->uid))
 		|| subj->pid == obj->pid)
 	    continue;
 
@@ -1261,6 +1263,7 @@ passthru:
 	}
 
 	int recuid = creds->euid;
+	int recpid = creds->pid;
 	FreeLocalClientCreds(creds);
 
 	if (!pSel->client)
@@ -1271,9 +1274,11 @@ passthru:
 	}
 
 	int seluid = creds->euid;
+	int selpid = creds->pid;
 	FreeLocalClientCreds(creds);
 
-	if (recuid != seluid) {
+	if ((!ALTSecStrict && (recuid != seluid))
+		|| (recpid != selpid)) {
 	    goto deny;
 	}
     }
@@ -1305,7 +1310,7 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
-    if (subj->uid == obj->uid ||
+    if ((!ALTSecStrict && (subj->uid == obj->uid)) ||
 	    (rec->access_mode | allowed) == allowed)
 	return;
 
