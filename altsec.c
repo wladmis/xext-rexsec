@@ -23,18 +23,26 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <pwd.h>
-#include <string.h>
 #include <errno.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#define DEBUG(...) if (debug) LOG(__VA_ARGS__)
-#define LOG(...) LogMessage(X_INFO, "ALTSecurity: " __VA_ARGS__)
+enum {
+    LL_DEFAULT,
+    LL_INFO,
+    LL_DEBUG,
+    LL_TRACE
+};
 
-int debug = 0;
-int trace = 0;
+#define ALTSEC "ALTSecurity"
+#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, ALTSEC " (debug): " __VA_ARGS__)
+#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, ALTSEC " (info): " __VA_ARGS__)
+#define LOG(...) LogMessage(X_INFO, ALTSEC ": " __VA_ARGS__)
+
+int loglevel = 0;
 
 int trusted_uid = -1;
 
@@ -147,24 +155,23 @@ static XF86ModuleVersionInfo altsecVerRec = {
 
 typedef enum {
     OPTION_ALLOWED_EXTS,
+    OPTION_LOGLEVEL,
+    OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
     OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
-    OPTION_DEBUG,
-    OPTION_TRACE,
-    OPTION_PERMANENT
+    THE_END_OF_OPTIONS
 } ALTSecOpts;
 
 static const OptionInfoRec ALTSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
+    {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
-    {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
     {OPTION_SHARE_SELECTIONS,	"SharedSelections",	OPTV_STRING,	{0},	FALSE},
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
-    {OPTION_DEBUG,		"ASecDebug",		OPTV_BOOLEAN,	{0},	FALSE},
-    {OPTION_TRACE,		"Trace",		OPTV_BOOLEAN,	{0},	FALSE},
+    {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
@@ -458,6 +465,19 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
 		    break;
 
+		case OPTION_LOGLEVEL:
+		    loglevel = strtol(val, NULL, 10);
+
+		    if (errno != 0) {
+			loglevel = 0;
+			char err_msg[1024];
+			strerror_r(errno, err_msg, sizeof(err_msg));
+			LogMessage(X_INFO, ALTSEC " (error): Could not read LogLevel option: %s\n", err_msg);
+		    }
+
+		case OPTION_PERMANENT:
+		    ALTSecPermanent = 1;
+		    break;
 
 		case OPTION_SHARED_PROPS:
 		    ALTSecSharedProps = make_str_list(val);
@@ -483,20 +503,8 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 		    ALTSecStrict = 1;
 		    break;
 
-		case OPTION_PERMANENT:
-		    ALTSecPermanent = 1;
-		    break;
-
 		case OPTION_TRUSTEDCLIENTS:
 		    construct_trusted_clients_list(val);
-		    break;
-
-		case OPTION_DEBUG:
-		    debug = 1;
-		    break;
-
-		case OPTION_TRACE:
-		    trace = 1;
 		    break;
 
 		default:
@@ -673,7 +681,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    pClientPriv->uid = creds->euid;
 
 		if (client_cmdname) {
-		    LOG("REGISTER client #%d initialized by %s (pid=%d, uid=%d)\n",
+		    INFO("REGISTER client #%d initialized by %s (pid=%d, uid=%d)\n",
 			    pci->client->index,
 			    client_cmdname,
 			    pClientPriv->pid,
@@ -687,7 +695,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			    && pClientPriv->uid == trusted_uid
 			    && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
 			pClientPriv->is_trusted = 1;
-			LOG("REQUESTS client #6: client is trusted\n");
+			INFO("client #6: client is trusted\n");
 		    }
 		}
 
@@ -703,10 +711,10 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			pClientPriv->wm = 1;
 			pClientPriv->is_trusted = 1;
 
-			LOG("Initialized client #%d by Window Manager\n",
+			INFO("Initialized client #%d by Window Manager\n",
 				pci->client->index);
 		    } else {
-			LOG("pid %d is no longer owned by"
+			INFO("pid %d is no longer owned by"
 			    "the Window Manager process\n",
 				wmpid);
 
@@ -766,7 +774,7 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (is_matched(rec->ext->name, (const char **) ALTSecAllowedExt))
 	return;
 
-    LOG("Deny client #%d uid %d access %#x to extension %s\n",
+    LOG("Extension: Deny client #%d uid %d access %#x to extension %s\n",
 	    rec->client->index, subj->uid, rec->access_mode, rec->ext->name);
     rec->status = BadAccess;
 }
@@ -858,7 +866,7 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	return;
 
     /* extend me */
-    LOG("server management is restricted for client number #%d (uid=%d, pid=%d)\n",
+    LOG("ServerAccess: server management is restricted for client number #%d (uid=%d, pid=%d)\n",
 	rec->client->index, subj->uid, subj->pid);
     rec->status = BadAccess;
 }
@@ -912,7 +920,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     ALTSecWinPtr wobj;
     Mask allowed = ALTSecResourceMask | DixReadAccess;
 
-    if (trace)
+    if (loglevel >= LL_TRACE)
 	LOG("Property (trace): client #%d access %#x property %s for window, owned by client #%d\n",
 		rec->client->index,
 		rec->access_mode,
@@ -929,7 +937,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     if (!is_sub_matched(propName, ClipboardProperties))
 	goto passthru;
 
-    LOG("PropertyAccess: Client #%d uid %d access (access_mode=%#x) clipboard property %s of client #%d\n",
+    DEBUG("PropertyAccess: Client #%d uid %d access (access_mode=%#x) clipboard property %s of client #%d\n",
 	    client->index, subj->uid, rec->access_mode, propName, rec->client->index);
 
     if (rec->access_mode & DixCreateAccess) {
@@ -971,7 +979,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
      && (focused_client = wClient(inputInfo.keyboard->focus->win)))
 	focused_client_idx = focused_client->index;
 
-    LOG("Property: Focused client is #%d\n", focused_client_idx);
+    DEBUG("Property: Focused client is #%d\n", focused_client_idx);
 
     if ((subj->pid == selection_owner
 	    && checkClipboardAccess(client, 0, 0))
@@ -1015,7 +1023,7 @@ passthru:
 		if (rec->client->clientIds->cmdargs)
 		    wmcmdname = strdup(rec->client->clientIds->cmdargs);
 
-		LOG("Client #%d with pid %d is a window manager\n",
+		INFO("Client #%d with pid %d is a window manager\n",
 			rec->client->index, rec->client->clientIds->pid);
 	    }
 
@@ -1075,10 +1083,10 @@ passthru:
 	    && pProp->size >= 5 /* should always be true, but just in case */
 	    && (((char *) pProp->data)[0] & (char) 1)) {
 	if (((char *) pProp->data)[4] == 0) {
-	    LOG("WM_HINTS property client #%d will be unfocused\n", client->index);
+	    DEBUG("WM_HINTS property client #%d will be unfocused\n", client->index);
 	    wcobj->no_input = 1;
 	} else {
-	    LOG("WM_HINTS property client #%d will be focused\n", client->index);
+	    DEBUG("WM_HINTS property client #%d will be focused\n", client->index);
 	    wcobj->no_input = 0;
 	}
     }
@@ -1095,7 +1103,7 @@ deny:
 	client->index,
 	wobj->uid);
 
-    LOG("Property: is_selection: %d\n", is_selection);
+    DEBUG("Property: is_selection: %d\n", is_selection);
     rec->status = is_selection ? BadMatch : BadAccess;
 }
 
@@ -1107,7 +1115,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
     ALTSecClientPtr subj;
     ALTSecClientPtr obj;
 
-    if (trace)
+    if (loglevel >= LL_TRACE)
 	for (int i = 0; i < rec->count; i++)
 	    if ((rec->dev == inputInfo.keyboard
 		    && rec->events[i].u.u.type != KeyPress
@@ -1166,7 +1174,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     ALTSecClientPtr obj;
     Atom event;
 
-    if (trace)
+    if (loglevel >= LL_TRACE)
 	for (int i = 0; i < rec->count; i++)
 	    if (rec->events[i].u.u.type != KeyPress
 		    && rec->events[i].u.u.type != KeyRelease
@@ -1193,7 +1201,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	    lastFocused.pid = subj->pid;
 	    lastFocused.ts = currentTime;
 
-	    LOG("Receive: focus change: client #%d, uid=%d, pid=%d\n",
+	    DEBUG("Receive: focus change: client #%d, uid=%d, pid=%d\n",
 		    lastFocused.cid, lastFocused.uid, lastFocused.pid);
 	}
 
@@ -1261,7 +1269,7 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	strcmp(atom_name, "CLIPBOARD") != 0)
 	goto passthru;
 
-    LOG("Selection: clipboard selection %s requested by client #%d, focused client is #%d, access_mode is %#x\n",
+    DEBUG("Selection: clipboard selection %s requested by client #%d, focused client is #%d, access_mode is %#x\n",
 	    atom_name,
 	    rec->client->index,
 	    lastFocused.cid,
@@ -1274,11 +1282,11 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	if (checkClipboardAccess(rec->client, 1, 0)
 		|| is_trusted_client(rec->client)
 		|| rec->client == serverClient) {
-	    LOG("Selection: Set selection_owner to %d\n", selection_owner);
+	    DEBUG("Selection: Set selection_owner to %d\n", selection_owner);
 	    selection_owner = subj->pid;
 	    obj->is_faked = 0;
 	} else {
-	    LOG("Selection: faked selection %d\n", subj->pid);
+	    DEBUG("Selection: faked selection %d\n", subj->pid);
 	    obj->is_faked = 1;
 	}
     } else {
