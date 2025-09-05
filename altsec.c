@@ -107,7 +107,6 @@ char **ALTSecAllowedExt = NULL;
 char **ALTSecSharedProps = NULL;
 char **ALTSecSharedSels = NULL;
 char **ALTSecTrustedClients = NULL;
-int ALTSecHandleClipboard = 0;
 int ALTSecPermanent = 0;
 int ALTSecStrict = 0;
 int ALTSecXinput2WA = 0;
@@ -154,7 +153,6 @@ typedef enum {
     OPTION_XINPUT2_WRKRND,
     OPTION_SHARED_PROPS,
     OPTION_SHARE_SELECTIONS,
-    OPTION_HANDLE_CLIPDOARD,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
     OPTION_DEBUG,
@@ -165,7 +163,6 @@ typedef enum {
 static const OptionInfoRec ALTSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
     {OPTION_XINPUT2_WRKRND,	"XInput2Workaround",	OPTV_BOOLEAN,	{0},	FALSE},
-    {OPTION_HANDLE_CLIPDOARD,	"HandleClipboard",	OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
@@ -470,10 +467,6 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 			goto exit;
 		    }
 
-		    break;
-
-		case OPTION_HANDLE_CLIPDOARD:
-		    ALTSecHandleClipboard = 1;
 		    break;
 
 		case OPTION_STRICT:
@@ -913,8 +906,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
     wobj = dixLookupPrivate(&rec->pWin->devPrivates, asec_window_key);
 
-    if (!ALTSecHandleClipboard ||
-	!is_sub_matched(propName, ClipboardProperties))
+    if (!is_sub_matched(propName, ClipboardProperties))
 	goto passthru;
 
     LOG("PropertyAccess: Client #%d uid %d access (access_mode=%#x) clipboard property %s of client #%d\n",
@@ -1251,9 +1243,6 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 
     if (is_matched(atom_name, (const char **) ALTSecSharedSels))
 	return;
-
-    if (!ALTSecHandleClipboard)
-	goto passthru;
 
     if (strcmp(atom_name, "PRIMARY") != 0 &&
 	strcmp(atom_name, "CLIPBOARD") != 0)
