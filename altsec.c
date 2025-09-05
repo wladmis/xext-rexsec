@@ -109,9 +109,6 @@ char **ALTSecSharedSels = NULL;
 char **ALTSecTrustedClients = NULL;
 int ALTSecPermanent = 0;
 int ALTSecStrict = 0;
-int ALTSecXinput2WA = 0;
-
-const char xiext_str[] = "XInputExtension:";
 
 /* Similar from X11 Security extension */
 const Mask ALTSecResourceMask =
@@ -150,7 +147,6 @@ static XF86ModuleVersionInfo altsecVerRec = {
 
 typedef enum {
     OPTION_ALLOWED_EXTS,
-    OPTION_XINPUT2_WRKRND,
     OPTION_SHARED_PROPS,
     OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
@@ -162,7 +158,6 @@ typedef enum {
 
 static const OptionInfoRec ALTSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
-    {OPTION_XINPUT2_WRKRND,	"XInput2Workaround",	OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
@@ -421,10 +416,34 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 {
     void *ret = (void *) 1;
 
-    /* Similar to X11 Security extension */
-    /* The only extensions that untrusted clients have access to */
-    const char *allowed_ext = "XC-MISC:BIG-REQUESTS:";
-    char *ext_str;
+    /* These extenstions are needed for modern clients with modern graphical
+     * toolkits to work. It's OK to allow them all, because we allow a full
+     * access to them only for trusted clients, and only safe subset of
+     * operations (handled by resource access for example) allowed for
+     * untrusted clients. */
+    const char *allowed_ext = "XC-MISC:"
+	"BIG-REQUESTS:"
+	"DAMAGE:"
+	"DOUBLE-BUFFER:"
+	"DRI2:"
+	"DRI3:"
+	"GLX:"
+	"Generic Event Extension:"
+	"MIT-SHM:"
+	"Present:"
+	"RANDR:"
+	"RENDER:"
+	"SECURITY:"
+	"SHAPE:"
+	"SYNC:"
+	"X-Resource:"
+	"XFIXES:"
+	"XFree86-VidModeExtension:"
+	"XInputExtension:"
+	"XKEYBOARD:"
+	"XVideo:"
+	"";
+    char *ext_str = NULL;
 
     for (int i = 0; ALTSecOptions[i].name != NULL; i++) {
 	const char *val = xf86FindOptionValue(opts, ALTSecOptions[i].name);
@@ -433,21 +452,12 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	    switch (ALTSecOptions[i].token) {
 		case OPTION_ALLOWED_EXTS:
 		    ext_str = calloc(strlen(allowed_ext) + strlen(val) + 1, sizeof(char));
-		    strcat(ext_str, allowed_ext);
+		    if (ext_str == NULL)
+			FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
 		    strcat(ext_str, val);
-		    ALTSecAllowedExt = make_str_list(ext_str);
-
-		    if (!ALTSecAllowedExt) {
-			ret = NULL;
-			goto exit;
-		    }
 
 		    break;
 
-
-		case OPTION_XINPUT2_WRKRND:
-		    ALTSecXinput2WA = 1;
-		    break;
 
 		case OPTION_SHARED_PROPS:
 		    ALTSecSharedProps = make_str_list(val);
@@ -493,6 +503,19 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 		    break;
 	    }
 	}
+    }
+
+    if (ext_str == NULL) {
+	if ((ext_str = calloc(strlen(allowed_ext) + 1, sizeof(char))) == NULL)
+	    FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
+    }
+
+    strcat(ext_str, allowed_ext);
+    ALTSecAllowedExt = make_str_list(ext_str);
+
+    if (!ALTSecAllowedExt) {
+	ret = NULL;
+	goto exit;
     }
 
 exit:
@@ -741,9 +764,6 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	return;
 
     if (is_matched(rec->ext->name, (const char **) ALTSecAllowedExt))
-	return;
-
-    if (ALTSecXinput2WA && strcmp(rec->ext->name, "XInputExtension") == 0)
 	return;
 
     LOG("Deny client #%d uid %d access %#x to extension %s\n",
@@ -1193,13 +1213,6 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	}
 
 	event = rec->events[i].u.u.type;
-
-	if (strncmp(LookupEventName(rec->events[i].u.u.type), xiext_str, strlen(xiext_str)) == 0) {
-	    if (is_trusted_client(rec->client))
-		continue;
-
-	    goto deny;
-	}
 
 	goto deny;
     }
