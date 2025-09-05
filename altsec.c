@@ -164,7 +164,7 @@ typedef enum {
     THE_END_OF_OPTIONS
 } ALTSecOpts;
 
-static const OptionInfoRec ALTSecOptions[] = {
+static OptionInfoRec ALTSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
@@ -450,81 +450,43 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	"XKEYBOARD:"
 	"XVideo:"
 	"";
-    char *ext_str = NULL;
+    char *ext_str = strdup(allowed_ext);
 
-    for (int i = 0; ALTSecOptions[i].name != NULL; i++) {
-	const char *val = xf86FindOptionValue(opts, ALTSecOptions[i].name);
+    xf86ProcessOptions(-1, opts, ALTSecOptions);
 
-	if (val != NULL) {
-	    switch (ALTSecOptions[i].token) {
-		case OPTION_ALLOWED_EXTS:
-		    ext_str = calloc(strlen(allowed_ext) + strlen(val) + 1, sizeof(char));
-		    if (ext_str == NULL)
-			FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
-		    strcat(ext_str, val);
+    xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
+    xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &ALTSecPermanent);
+    xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &ALTSecStrict);
 
-		    break;
+    const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
-		case OPTION_LOGLEVEL:
-		    loglevel = strtol(val, NULL, 10);
-
-		    if (errno != 0) {
-			loglevel = 0;
-			char err_msg[1024];
-			strerror_r(errno, err_msg, sizeof(err_msg));
-			LogMessage(X_INFO, ALTSEC " (error): Could not read LogLevel option: %s\n", err_msg);
-		    }
-
-		case OPTION_PERMANENT:
-		    ALTSecPermanent = 1;
-		    break;
-
-		case OPTION_SHARED_PROPS:
-		    ALTSecSharedProps = make_str_list(val);
-
-		    if (!ALTSecSharedProps) {
-			ret = NULL;
-			goto exit;
-		    }
-
-		    break;
-
-		case OPTION_SHARE_SELECTIONS:
-		    ALTSecSharedSels = make_str_list(val);
-
-		    if (!ALTSecSharedSels) {
-			ret = NULL;
-			goto exit;
-		    }
-
-		    break;
-
-		case OPTION_STRICT:
-		    ALTSecStrict = 1;
-		    break;
-
-		case OPTION_TRUSTEDCLIENTS:
-		    construct_trusted_clients_list(val);
-		    break;
-
-		default:
-		    break;
-	    }
-	}
-    }
-
-    if (ext_str == NULL) {
-	if ((ext_str = calloc(strlen(allowed_ext) + 1, sizeof(char))) == NULL)
+    if (opt_exts != NULL) {
+	int ext_str_len = strlen(allowed_ext) + strlen(opt_exts) + 1;
+	/* I don't care about saving the pointer here, we will exit in case of fail anyway. */
+	if ((ext_str = realloc(ext_str, ext_str_len * sizeof(char))) == NULL)
 	    FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
+	strcat(ext_str, opt_exts);
     }
 
-    strcat(ext_str, allowed_ext);
     ALTSecAllowedExt = make_str_list(ext_str);
+    free(ext_str);
 
     if (!ALTSecAllowedExt) {
 	ret = NULL;
 	goto exit;
     }
+
+    const char *shared_props = xf86GetOptValString(ALTSecOptions, OPTION_SHARED_PROPS);
+    if (shared_props != NULL)
+	ALTSecSharedProps = make_str_list(shared_props);
+
+    const char *shared_sels = xf86GetOptValString(ALTSecOptions, OPTION_SHARE_SELECTIONS);
+    if (shared_sels != NULL)
+	ALTSecSharedSels = make_str_list(shared_sels);
+
+    const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
+    if (trusted_clients != NULL)
+	construct_trusted_clients_list(trusted_clients);
 
 exit:
     if (!ret) {
@@ -550,25 +512,25 @@ altsecModuleInit(INITARGS)
 
     if (!once) {
 	once++;
-    }
 
-    if (!dixRegisterPrivateKey(asec_client_key, PRIVATE_CLIENT, sizeof(ALTSecClientRec))) {
-	FatalError("ALTSecurity: could not register private key asec_client_key\n");
-    }
+	if (!dixRegisterPrivateKey(asec_client_key, PRIVATE_CLIENT, sizeof(ALTSecClientRec))) {
+	    FatalError("ALTSecurity: could not register private key asec_client_key\n");
+	}
 
-    if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(ALTSecClientRec))) {
-	FatalError("ALTSecurity: could not register private key asec_window_key\n");
-    }
+	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(ALTSecClientRec))) {
+	    FatalError("ALTSecurity: could not register private key asec_window_key\n");
+	}
 
-    if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(ALTSecPropRec))) {
-	FatalError("ALTSecurity: could not register private key asec_prop_key\n");
-    }
+	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(ALTSecPropRec))) {
+	    FatalError("ALTSecurity: could not register private key asec_prop_key\n");
+	}
 
-    if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(ALTSecSelRec))) {
-	FatalError("ALTSecurity: could not register private key asec_sel_key\n");
-    }
+	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(ALTSecSelRec))) {
+	    FatalError("ALTSecurity: could not register private key asec_sel_key\n");
+	}
 
-    altsecExtensionInit();
+	altsecExtensionInit();
+    }
 }
 
 /*
