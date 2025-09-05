@@ -1,0 +1,7 @@
+.*
+# ignore backup files
+*~
+# ignore artifacts
+*.o
+*.so
+*.tar.gz
