@@ -768,7 +768,7 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
-    if (is_trusted_uid(subj->uid))
+    if (is_trusted_client(rec->client))
 	return;
 
     if (is_matched(rec->ext->name, (const char **) ALTSecAllowedExt))
