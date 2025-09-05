@@ -1170,8 +1170,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 {
     XaceReceiveAccessRec *rec = calldata;
 
-    ALTSecClientPtr subj;
-    ALTSecClientPtr obj;
+    ALTSecClientPtr subj, obj;
     Atom event;
 
     if (loglevel >= LL_TRACE)
@@ -1185,7 +1184,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 			LookupEventName(rec->events[i].u.u.type));
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
-    obj = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
+    obj = dixLookupPrivate(&(wClient(rec->pWin))->devPrivates, asec_client_key);
 
     for (int i = 0; i < rec->count; i++) {
 	if (rec->events[i].u.u.type == FocusIn
@@ -1208,11 +1207,14 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	if (is_trusted_client(rec->client))
 	    continue;
 
-	if ((!ALTSecStrict && subj->uid == obj->uid)
-		|| subj->pid == obj->pid)
+	if (rec->client->index == wClient(rec->pWin)->index)
 	    continue;
 
 	if (wClient(rec->pWin) == serverClient)
+	    continue;
+
+	if ((!ALTSecStrict && subj->uid == obj->uid)
+		|| subj->pid == obj->pid)
 	    continue;
 
 	if (rec->events[i].u.u.type == PropertyNotify
@@ -1228,11 +1230,11 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     return;
 
 deny:
-    LOG("Receive: deny client #%d to receive message %s (%d) from client #%d\n",
-	    wClient(rec->pWin)->index,
+    LOG("Receive: deny client #%d to receive message %s (%d) sent to window belonged to client #%d\n",
+	    rec->client->index,
 	    LookupEventName(event),
 	    event,
-	    rec->client->index);
+	    wClient(rec->pWin)->index);
     rec->status = BadAccess;
 }
 
