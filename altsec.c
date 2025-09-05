@@ -933,32 +933,6 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
     return;
 
-    ClientPtr focused_client = NULL;
-    int focused_client_idx = -1;
-    if (inputInfo.keyboard
-     && inputInfo.keyboard->focus
-     && inputInfo.keyboard->focus->win
-     && (focused_client = wClient(inputInfo.keyboard->focus->win)))
-	focused_client_idx = focused_client->index;
-
-    DEBUG("Property: Focused client is #%d\n", focused_client_idx);
-
-    if ((subj->pid == selection_owner
-	    && checkClipboardAccess(client, 0, 0))
-	    || is_trusted_client(client)
-	    || rec->client == serverClient) {
-    }
-
-    if (subj->pid == selection_owner
-	&& checkClipboardAccess(client, 0, 0)) {
-	/* allow */;
-    } else {
-	is_selection = 1;
-	goto deny;
-    }
-
-    return;
-
     /* Originally, the following code had polyinstallation for properties, but
      * it made it more complex, so I dropped it for now. */
 passthru:
