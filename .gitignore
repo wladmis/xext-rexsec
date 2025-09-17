@@ -5,3 +5,5 @@
 *.o
 *.so
 *.tar.gz
+VERSION
+version.h
