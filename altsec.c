@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: MIT OR X11
  */
 
+#include "version.h"
+
 #define X_REGISTRY_REQUEST
 #include <xorg-server.h>
 #include <xf86.h>
