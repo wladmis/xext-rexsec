@@ -1,0 +1,35 @@
+name: test build
+on:
+  push:
+    paths:
+      - altsec.c
+      - Makefile
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:sid
+            run: apt-get update && apt-get -y upgrade && apt-get install -y gcc git make pkg-config libxext-dev xserver-xorg-dev
+          - image: debian:trixie
+            run: apt-get update && apt-get -y upgrade && apt-get install -y gcc git make pkg-config libxext-dev xserver-xorg-dev
+          - image: debian:bookworm
+            run: apt-get update && apt-get -y upgrade && apt-get install -y gcc git make pkg-config libxext-dev xserver-xorg-dev
+          - image: debian:bullseye
+            run: apt-get update && apt-get -y upgrade && apt-get install -y gcc git make pkg-config libxext-dev xserver-xorg-dev
+          - image: registry.opensuse.org/opensuse/tumbleweed
+            run: zypper -n install -y gcc git make pkg-config libXext-devel xorg-x11-server-sdk
+
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - run: ${{ matrix.run }}
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - run: git config --global --add safe.directory $(pwd)
+      - run: make
