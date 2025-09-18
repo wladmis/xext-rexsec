@@ -89,7 +89,7 @@ Altsec marks a client as trusted in the following cases:
 * the client was started during insecure mode;
 * the client is a Window Manager;
 * the client executable name was defined in the list of trusted clients (see `CONFIGURATION`_) and there are no other conditions why altsec should mark it as confined (see below);
-* if ``strict mode`` is disabled (see `CONFIGURATION`_), if client run with the same EUID as the Window Manager's EUID (UID-based separation).
+* if ``strict mode`` is disabled (see `CONFIGURATION`_), and the client runs with the same EUID as the Window Manager's EUID (UID-based separation).
 
 All other clients are marked as *confined*.
 
