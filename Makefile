@@ -26,7 +26,7 @@ altsec.so: altsec.o
 altsec.o: altsec.c
 	cc -c altsec.c $(CFLAGS) $(EXTRA_CFLAGS)
 
-xext-altsec-$(VERSION).tar.gz: altsec.c Makefile
+xext-altsec-$(VERSION).tar.gz: altsec.c Makefile README.rst 90-altsec.conf.sample
 	tar -czf $@ $^
 
 tarball: xext-altsec-$(VERSION).tar.gz

@@ -1,12 +1,12 @@
-======
-ALTSec
-======
+===========
+XEXT-ALTSEC
+===========
 
-ALTSecurity or altsec or alternative X11 security module.
+Xext-altsec or altsec or alternative X11 security module.
 
-ALTSec (alternative X11 security module) is an implementation of X11 client
-security isolation for X.org server and EWMH-compilant Window managers.
-It aims to be practical and not to be general-purpose, so it
+Altsec (alternative X11 security module) is an implementation of X11
+client security isolation for X.org server and EWMH-compilant Window
+managers. It aims to be practical and not to be general-purpose, so it
 is not very flexible.  It is supposed to just work and requires a zero
 or a very little configuration.
 
@@ -26,8 +26,9 @@ want, while confined clients are restricted with its own resources and
 a relatevely safe set of operations enough for modern applications to run.
 It may sounds like a classical XSecurity extension, but it is very
 different in details. And at these days when this project is written
-XSecurity is absolutely unusable. The rules altsec is using to mark clients as
-trusted or confined are described at `TRUSTED CLIENTS`_ section.
+XSecurity is absolutely unusable. The rules altsec is using to mark
+clients as trusted or confined are described at `TRUSTED CLIENTS`_
+section.
 
 Altsec also protect both primary selection and clipboard in some manner
 (see `CLIPBOARD PROTECTION`_) without any additional configuration.
@@ -41,9 +42,10 @@ do almost anything with other clients with the same UID, but now there
 is even more strict mode (policy) where confined clients only can do
 anything with resources they own.
 
-All clients are divided into trusted and confined clients. See `TRUSTED CLIENTS`_.
+All clients are divided into trusted and confined clients. See `TRUSTED
+CLIENTS`_.
 
-ALTSec's lifetime modes are divided into several stages. When X starts,
+Altsec's lifetime modes are divided into several stages. When X starts,
 altsec runs in the *insecure mode*, all clients started in this mode are
 marked as *trusted*. This mode lasts until some Window Manager started.
 After that altsec switches to the *secure mode*, and all clients started
@@ -60,7 +62,7 @@ Take a look to the following ``.xinitrc`` example::
 
     eval $(ssh-agent)
 
-    # Window manager
+    # Window manager (transition to secure mode after this command)
     somewm
 
 There ``somewm`` is some window manager.
@@ -118,9 +120,9 @@ make it trusted.
 BUILD AND INSTALL
 =================
 
-To build it you need to have a C99-compilant compiler (I'm sure you
-have one), an xorg-server development files.
-To build, run the following command:
+To build it you need to have a compiler that supported GNU99 extensions,
+GNU Make, xorg-server's and libXext's development files.  To build, run
+the following command:
 
    $ make
 
@@ -161,8 +163,8 @@ Here is a brief description of the available options:
 ================ ======================================================= =============
 OPTION           DESCRIPTION                                             DEFAULT VALUE
 ================ ======================================================= =============
-AllowedExts      A colon-separated list of allowed extensions beyond     *None*
-                 defaults.
+AllowedExts      A colon-separated list of extra allowed extensions      *None*
+                 beyond defaults.
 
                  By default altsec allows to use a lot of relatively
                  safe extensions for all the clients to make modern
@@ -213,12 +215,29 @@ TrustedClients   A colon-separated list of executables which clients     *None*
                  abuse trusted client as its children. The easiest way
                  to achieve this to run all confined clients under user
                  namespace, i.e. confined via Flatpak, or firejail, etc.
+
+                 You can provide a fullpath to an executable or a
+                 relative path (Linux-only), resided in the ``$PATH`` of
+                 ``X`` server process.
+                 On Linux, every relative executable pathname provided
+                 in the list is looked up in ``$PATH`` of ``X`` server
+                 process, that it can't be abused with creating a
+                 malicious program with the similar name. On Linux,
+                 every symlink  is also deferred before matching.
+                 On Linux system, if an executable does not start with
+                 a *slash symbol* ``/``, then altsec looks up it in the
+                 ``X`` server process ``$PATH``. If it does not reside
+                 in the ``$PATH``, you should add a full pathname to the
+                 executable.
+
+                 On non-Linux systems you should provide only full
+                 pathname to the executable, any others will be ignored.
 ================ ======================================================= =============
 
 NOTE
 ====
 
-ALTSec **does not** handle process tree execution, in case of usage of
+AltSec **does not** handle process tree execution, in case of usage of
 trusted client list you have to make sure by yourself that confined
 clients cannot run clients from the trusted client list. The easiest way
 to achieve this to run all confined client under user namespace
@@ -239,8 +258,8 @@ and I hope it could be useful for users who cannot switch to Wayland
 for some reason.
 
 I have also a couple ideas for its improvement, like make it able to
-allow screenshots or screencasts in certain conditions for
-confined clients (which is necessary for online video calls or streaming, for
+allow screenshots or screencasts in certain conditions for confined
+clients (which is necessary for online video calls or streaming, for
 example), or system tray handling.
 
 Beside these, only code cleanup, refactoring, bug fixes and resolving
@@ -257,12 +276,12 @@ an email directly.
 Some of features are currently not available for systems other than
 Linux.
 
-It is intended to be used with simple WMs. It probably won't work with big and
-complex DEs.
+It is intended to be used with simple WMs. It probably won't work with
+big and complex DEs.
 
-It probably does not cover some specific use-cases, so some things might break.
-If you are interested to use it and catch some problem, do not hesitate to send me a
-message or help me with code.
+It probably does not cover some specific use-cases, so some things might
+break.  If you are interested to use it and catch some problem, do not
+hesitate to send me a message or help me with code.
 
 It is probably bypassable.
 
