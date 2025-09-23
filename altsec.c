@@ -971,7 +971,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 passthru:
     DEBUG("Property: passthru to non clipboard properties.\n");
     /* Hanble non-clipboard properties. */
-    if (rec->access_mode & DixCreateAccess) {
+    if (rec->access_mode & (DixCreateAccess | DixWriteAccess)) {
 	/* Label newly created properties. */
 	/* The target window is the root window (I guess) */
 	if (rec->pWin->parent == NULL) {
