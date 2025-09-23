@@ -900,6 +900,18 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	NULL
     };
 
+    static const char *WMProperties[] = {
+	"_NET_SUPPORTED",
+	"_NET_CLIENT_LIST",
+	"_NET_NUMBER_OF_DESKTOPS",
+	"_NET_DESKTOP_GEOMETRY",
+	"_NET_CURRENT_DESKTOP",
+	"_NET_DESKTOP_NAMES",
+	"_NET_WORKAREA",
+	"_NET_SUPPORTING_WM_CHECK",
+	NULL
+    };
+
     XacePropertyAccessRec *rec = calldata;
     int is_selection = 0;
 
@@ -977,10 +989,9 @@ passthru:
 	if (rec->pWin->parent == NULL) {
 	    DEBUG("Property: client #%d does create access to root window\n",
 		    rec->client->index);
-	    /* First client that set _NET_SUPPORTED on the rootwin is
+	    /* First client that set on of this properties on the rootwin is
 	     * considered as window manager */
-	    /* TODO: handle other props provided by _NET_SUPPORTED */
-	    if (trusted_uid == -1 && strcmp(propName, "_NET_SUPPORTED") == 0) {
+	    if (trusted_uid == -1 && is_matched(propName, WMProperties)) {
 		trusted_uid = subj->uid;
 		subj->wm = 1;
 		obj->wm = 1;
