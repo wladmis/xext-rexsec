@@ -1063,14 +1063,18 @@ passthru:
     return;
 
 deny:
-    LOG("Property: Deny client #%d (pid=%d, uid=%d) access %#x to the property %s owned by client #%d (wobj uid=%d)\n",
+    LOG("Property: Deny client #%d (pid=%d, uid=%d) access %#x to the property %s "
+	    "owned by client #%d (wobj uid=%d, obj->uid-> %d, obj->pid = %d, obj->wm = %d)\n",
 	rec->client->index,
 	subj->pid,
 	subj->uid,
 	rec->access_mode,
 	propName,
 	client->index,
-	wobj->uid);
+	wobj->uid,
+	obj->uid,
+	obj->pid,
+	obj->wm);
 
     DEBUG("Property: is_selection: %d\n", is_selection);
     rec->status = is_selection ? BadMatch : BadAccess;
