@@ -1033,9 +1033,9 @@ passthru:
 	/* Properties set by a Window Manager can be read by anyone */
 	if (subj->wm || rec->client == serverClient)
 	    obj->wm = 1;
-    } else if (rec->access_mode & allowed
-	    || rec->client->index == client->index
-	    || (obj->wm && (rec->access_mode & DixReadAccess))
+    } else if (rec->client->index == client->index
+	    || ((obj->wm || client->index == wmcid || client == serverClient)
+		&& (rec->access_mode & allowed))
 	    || (!ALTSecStrict && (subj->uid == obj->uid))
 	    || subj->pid == obj->pid
 	    || subj->pid == wobj->pid
