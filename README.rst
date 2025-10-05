@@ -22,15 +22,15 @@ DESIGN
 
 The idea of altsec is to have two types of X11 applications (clients in
 term of X11): trusted and confined. Trusted clients can do whatever they
-want, while confined clients are restricted with its own resources and
+want, while confined clients are restricted with their own resources and
 a relatevely safe set of operations enough for modern applications to run.
-It may sounds like a classical XSecurity extension, but it is very
+It may sound like a classical XSecurity extension, but it is very
 different in details. And at these days when this project is written
 XSecurity is absolutely unusable. The rules altsec is using to mark
 clients as trusted or confined are described at `TRUSTED CLIENTS`_
 section.
 
-Altsec also protect both primary selection and clipboard in some manner
+Altsec also protects both primary selection and clipboard in some manner
 (see `CLIPBOARD PROTECTION`_) without any additional configuration.
 
 HOW IT WORKS
@@ -39,13 +39,13 @@ HOW IT WORKS
 Originally altsec did X11 client separation based on their UIDs (user
 identifier, specifically *effective UID*) where clients with one UID can
 do almost anything with other clients with the same UID, but now there
-is even more strict mode (policy) where confined clients only can do
-anything with resources they own.
+is even more strict mode (policy) where confined clients can do
+anything only with resources they own.
 
 All clients are divided into trusted and confined clients. See `TRUSTED
 CLIENTS`_.
 
-Altsec's lifetime modes are divided into several stages. When X starts,
+Altsec's lifetime is divided into several stages with different modes active. When X starts,
 altsec runs in the *insecure mode*, all clients started in this mode are
 marked as *trusted*. This mode lasts until some Window Manager started.
 After that altsec switches to the *secure mode*, and all clients started
@@ -85,7 +85,7 @@ least to get one issue report and resolve it.
 TRUSTED CLIENTS
 ---------------
 
-The *trusted* cliens can do almost anything, like regular X11 clients do.
+The *trusted* clients can do almost anything, like regular X11 clients do.
 Altsec marks a client as trusted in the following cases:
 
 * the client was started during insecure mode;
@@ -95,20 +95,20 @@ Altsec marks a client as trusted in the following cases:
 
 All other clients are marked as *confined*.
 
-Also all clients are *always* marked as ``confined`` and **never** as
+Also a client is *always* marked as ``confined`` and **never** as
 ``trusted`` in the following cases:
 
 * its EUID != EUID of the WM;
-* its process run on the remote host;
-* its process run inside of chroot (Linux-only for now);
-* its process run inside of non-initial user namespace (Linux-only).
+* its process runs on the remote host;
+* its process runs inside of chroot (Linux-only for now);
+* its process runs inside of non-initial user namespace (Linux-only).
 
 CLIPBOARD PROTECTION
 --------------------
 
 Altsec protects both primary selection and clipboard. Only those
 confined clients which window is in focus at the moment can read and
-write to the clipboards. This is quite a simple technic but still it can
+write to the clipboards. This is quite a simple technique but it still can
 protect from some abuses.
 
 Trusted clients have unlimited access to both primary selection and
@@ -120,15 +120,15 @@ make it trusted.
 BUILD AND INSTALL
 =================
 
-To build it you need to have a compiler that supported GNU99 extensions,
+To build it you need a compiler that supports GNU99 extensions,
 GNU Make, xorg-server's and libXext's development files.  To build, run
-the following command:
+the following command::
 
-   $ make
+    $ make
 
-And then run as root to install it:
+And then run as root to install it::
 
-   # make install
+    # make install
 
 CONFIGURATION
 =============
@@ -188,9 +188,9 @@ Permanent        If false, altsec stops to work until a new WM started.  ``True`
 
 SharedProps      A colon-separated list of shared properties.            *None*
 
-                 By default, only clients who owns the property and
+                 By default, only clients which own the property and
                  trusted clients can manipulate it. Shared properties
-                 are not handled by altsec and any clients (trusted and
+                 are not handled by altsec and any client (trusted or
                  confined) can manipulate them.
 
                  Check ``Xorg.${DISPLAY#:}.log`` if you really need to
@@ -205,7 +205,7 @@ SharedSelections A colon-separated list of shared selections.            *None*
 Strict           If false, a UID-based separation is used instead of     ``True``
                  client-based.
 
-TrustedClients   A colon-separated list of executables which clients     *None*
+TrustedClients   A colon-separated list of executables whose clients     *None*
                  should be marked as trusted.
 
                  By default, only clients that started at insecure phase
@@ -223,21 +223,21 @@ TrustedClients   A colon-separated list of executables which clients     *None*
                  in the list is looked up in ``$PATH`` of ``X`` server
                  process, that it can't be abused with creating a
                  malicious program with the similar name. On Linux,
-                 every symlink  is also deferred before matching.
+                 every symlink  is also dereferenced before matching.
                  On Linux system, if an executable does not start with
-                 a *slash symbol* ``/``, then altsec looks up it in the
+                 a *slash symbol* ``/``, then altsec looks it up in the
                  ``X`` server process ``$PATH``. If it does not reside
                  in the ``$PATH``, you should add a full pathname to the
                  executable.
 
                  On non-Linux systems you should provide only full
-                 pathname to the executable, any others will be ignored.
+                 pathname to the executable, any other will be ignored.
 ================ ======================================================= =============
 
 NOTE
 ====
 
-AltSec **does not** handle process tree execution, in case of usage of
+AltSec **does not** handle process execution tree, in case of usage of
 trusted client list you have to make sure by yourself that confined
 clients cannot run clients from the trusted client list. The easiest way
 to achieve this to run all confined client under user namespace
