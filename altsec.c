@@ -842,10 +842,12 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	return;
 
     LOG("Resource: deny client number #%d (uid=%d, pid=%d) "
-	"access mode %lx to resource 0x%lx "
+	"access mode 0x%lx to resource 0x%lx "
+	"resource type 0x%lx "
 	"of client id %d (uid=%d, pid=%d), on request %s\n",
 	rec->client->index, subj->uid, subj->pid,
 	(unsigned long)rec->access_mode, (unsigned long)rec->id,
+	(unsigned long)rec->rtype,
 	cid, obj->uid, obj->pid, SecurityLookupRequestName(rec->client));
 
     rec->status = BadAccess;
