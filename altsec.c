@@ -723,7 +723,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			    && pClientPriv->uid == trusted_uid
 			    && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
 			pClientPriv->is_trusted = 1;
-			INFO("client #6: client is trusted\n");
+			INFO("client #%d: client is trusted\n", pci->client->index);
 		    }
 
 		    if (wine_hack && is_wineapp(pClientPriv->pid)) {
@@ -890,7 +890,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     LOG("Resource: deny client number #%d (uid=%d, pid=%d) "
 	"access mode 0x%lx to resource 0x%lx "
 	"resource type 0x%lx "
-	"of client id %d (uid=%d, pid=%d), on request %s\n",
+	"of client #%d (uid=%d, pid=%d), on request %s\n",
 	rec->client->index, subj->uid, subj->pid,
 	(unsigned long)rec->access_mode, (unsigned long)rec->id,
 	(unsigned long)rec->rtype,
@@ -911,7 +911,7 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	return;
 
     /* extend me */
-    LOG("ServerAccess: server management is restricted for client number #%d (uid=%d, pid=%d)\n",
+    LOG("ServerAccess: server management is restricted for client #%d (uid=%d, pid=%d)\n",
 	rec->client->index, subj->uid, subj->pid);
     rec->status = BadAccess;
 }
@@ -1186,7 +1186,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 		&& (rec->events[i].u.u.type & 127) != DestroyNotify) {
 		LOG("Send: deny client #%d (uid=%d, pid=%d) "
 		    "from sending event of type %s to window 0x%lx of "
-		    "client %d (uid=%d, pid=%d)\n",
+		    "client #%d (uid=%d, pid=%d)\n",
 			rec->client->index, subj->uid, subj->pid,
 			LookupEventName(rec->events[i].u.u.type),
 			(unsigned long)rec->pWin->drawable.id,
