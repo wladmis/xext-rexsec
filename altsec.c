@@ -25,6 +25,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <errno.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -45,8 +46,6 @@ enum {
 #define LOG(...) LogMessage(X_INFO, ALTSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
-
-int wine_hack = FALSE;
 
 int trusted_uid = -1;
 #if __linux__
@@ -77,9 +76,20 @@ DevPrivateKeyRec asec_client_key_rec;
 typedef struct {
     pid_t pid;
     int uid;
+#if __linux__
+    /* the executable stats */
+    int major;
+    int minor;
+    ino_t ino;
+    /* the (ch)root path stats */
+    int root_major;
+    int root_minor;
+    ino_t root_ino;
+    /* namespace */
+    ino_t userns;
+#endif /* __linux__ */
     int wm; /* True if the client is a window manager process */
     int is_trusted;
-    int wineapp;
     TimeStamp lastInput;
     TimeStamp selReqTS;
     TimeStamp createTime;
@@ -169,7 +179,6 @@ typedef enum {
     OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
-    OPTION_WINEHACK,
     THE_END_OF_OPTIONS
 } ALTSecOpts;
 
@@ -181,7 +190,6 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_SHARE_SELECTIONS,	"SharedSelections",	OPTV_STRING,	{0},	FALSE},
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
-    {OPTION_WINEHACK,		"WineHack",		OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
@@ -371,29 +379,64 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
     return 0;
 }
 
-static int
-is_wineapp(pid_t pid)
+#if __linux__
+void
+fill_client_stats(ALTSecClientPtr client, pid_t pid)
 {
-    char exe_path[32];
-    char real_path[PATH_MAX];
-    ssize_t len;
+    char path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/(exe|root|ns/user)") */
+    struct stat sb;
 
-    snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
+    DEBUG("enter fill_client_stats\n");
 
-    if ((len = readlink(exe_path, real_path, sizeof(real_path))) < 0)
+    snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+    if (stat(path, &sb) != -1) {
+	client->major = major(sb.st_dev);
+	client->minor = major(sb.st_dev);
+	client->ino = sb.st_ino;
+	DEBUG("fill_client_stats: major == %d, minor == %d, ino == %lu\n",
+		client->major, client->minor, client->ino);
+    }
+
+    snprintf(path, sizeof(path), "/proc/%d/root", pid);
+    if (stat(path, &sb) != -1) {
+	client->root_major = major(sb.st_dev);
+	client->root_minor = major(sb.st_dev);
+	client->root_ino = sb.st_ino;
+	DEBUG("fill_client_stats: root_major == %d, root_minor == %d, root_ino == %lu\n",
+		client->root_major, client->root_minor, client->root_ino);
+    }
+
+    snprintf(path, sizeof(path), "/proc/%d/ns/user", pid);
+    if (stat(path, &sb) != -1) {
+	client->userns = sb.st_ino;
+	DEBUG("fill_client_stats: userns == %lu\n", client->userns);
+    }
+
+    DEBUG("leave fill_client_stats\n");
+}
+
+static int
+are_equal_clients(ALTSecClientPtr c1, ALTSecClientPtr c2)
+{
+    /* In case we don't have stats */
+    if (c1->ino == 0 || c2->ino == 0
+     || c1->root_ino == 0 || c2->root_ino == 0
+     || c1->userns == 0 || c2->userns == 0)
 	return 0;
 
-    real_path[len] = '\0';
-
-    DEBUG("is_wineapp: exe_path = %s, real_path = %s\n",
-	    exe_path, real_path);
-
-    if (strstr(real_path, "/wine-preload") != NULL
-     || strstr(real_path, "/wine64-preload") != NULL)
+    if (c1->ino == c2->ino
+     && c1->uid == c2->uid
+     && c1->root_ino == c2->root_ino
+     && c1->userns == c2->userns
+     && c1->major == c2->major
+     && c1->minor == c2->minor
+     && c1->root_major == c2->root_major
+     && c1->root_minor == c2->root_minor)
 	return 1;
 
     return 0;
 }
+#endif /* __linux__ */
 
 #if 0
 static void
@@ -506,10 +549,6 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
     xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &ALTSecPermanent);
     xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &ALTSecStrict);
-    xf86GetOptValBool(ALTSecOptions, OPTION_WINEHACK, &wine_hack);
-
-    if (wine_hack)
-	INFO("Setup: enable Wine hack.\n");
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
@@ -705,6 +744,10 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		if (creds->fieldsSet & LCC_PID_SET)
 		    pClientPriv->pid = creds->pid;
 
+#if __linux__
+		fill_client_stats(pClientPriv, pClientPriv->pid);
+#endif /* __linux__ */
+
 		if (creds->fieldsSet & LCC_UID_SET)
 		    pClientPriv->uid = creds->euid;
 
@@ -724,13 +767,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			    && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
 			pClientPriv->is_trusted = 1;
 			INFO("client #%d: client is trusted\n", pci->client->index);
-		    }
-
-		    if (wine_hack && is_wineapp(pClientPriv->pid)) {
-			pClientPriv->wineapp = 1;
-			INFO("client #%d is a Wine app\n", pci->client->index);
-		    } else {
-			pClientPriv->wineapp = 0;
 		    }
 		}
 
@@ -871,9 +907,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if (clients[cid] != NULL) {
 	obj = dixLookupPrivate(&clients[cid]->devPrivates, asec_client_key);
 
-	/* IDK how to handle it properly, just make
-	 * Wine apps happy if user want to. */
-	if (wine_hack && subj->wineapp && obj->wineapp)
+	if (are_equal_clients(subj, obj))
 	    return;
 
 	if ((!ALTSecStrict && (subj->uid == obj->uid))
@@ -972,7 +1006,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     ClientPtr client = wClient(rec->pWin);
     ATOM name = (*rec->ppProp)->propertyName;
     const char *propName = NameForAtom(name);
-    ALTSecClientPtr subj;
+    ALTSecClientPtr subj, cobj;
     ALTSecPropPtr obj;
     ALTSecWinPtr wobj;
     Mask allowed = ALTSecResourceMask | DixReadAccess;
@@ -988,6 +1022,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	return;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
+    cobj = dixLookupPrivate(&client->devPrivates, asec_client_key);
     obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
     wobj = dixLookupPrivate(&rec->pWin->devPrivates, asec_window_key);
 
@@ -1073,6 +1108,8 @@ passthru:
 	} else {
 	    if (subj->is_trusted)
 		/* allow */;
+	    else if (are_equal_clients(subj, cobj))
+		/* allow */;
 	    else if (subj->pid > 0 &&
 		    (subj->pid == wobj->pid ||
 		     subj->pid == obj->pid))
@@ -1097,6 +1134,7 @@ passthru:
     } else if (rec->client->index == client->index
 	    || ((obj->wm || client->index == wmcid || client == serverClient)
 		&& (rec->access_mode & allowed))
+	    || are_equal_clients(subj, cobj)
 	    || (!ALTSecStrict && (subj->uid == obj->uid))
 	    || subj->pid == obj->pid
 	    || subj->pid == wobj->pid
@@ -1177,6 +1215,9 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	if (subj->pid == obj->pid)
 	    return;
 
+	if (are_equal_clients(subj, obj))
+	    return;
+
 	for (int i = 0; i < rec->count; i++) {
 	    if ((rec->events[i].u.u.type & 127) != UnmapNotify
 		&& (rec->events[i].u.u.type & 127) != ConfigureRequest
@@ -1238,9 +1279,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 		    lastFocused.cid, lastFocused.uid, lastFocused.pid);
 	}
 
-	/* IDK how to handle it properly, just make
-	 * Wine apps happy if user want to. */
-	if (wine_hack && subj->wineapp && obj->wineapp)
+	if (are_equal_clients(subj, obj))
 	    continue;
 
 	if (is_trusted_client(rec->client))
@@ -1411,8 +1450,9 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
-    if ((!ALTSecStrict && (subj->uid == obj->uid)) ||
-	    (rec->access_mode | allowed) == allowed)
+    if ((!ALTSecStrict && (subj->uid == obj->uid))
+	    || are_equal_clients(subj, obj)
+	    || (rec->access_mode | allowed) == allowed)
 	return;
 
     rec->status = BadAccess;

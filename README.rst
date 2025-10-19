@@ -232,9 +232,6 @@ TrustedClients   A colon-separated list of executables which clients     *None*
 
                  On non-Linux systems you should provide only full
                  pathname to the executable, any others will be ignored.
-
-WineHack         If true, AltSec enables workarounds to make Wine        ``False``
-                 application work.
 ================ ======================================================= =============
 
 NOTE
