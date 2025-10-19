@@ -9,5 +9,6 @@ Section "Module"
 	    Option "TrustedClients" "dmenu:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass"
 	    # Increase log level
 	    Option "LogLevel" "1"
+	    Option "WineHack" "True"
 	EndSubSection
 EndSection

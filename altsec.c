@@ -46,6 +46,8 @@ enum {
 
 int loglevel = 0;
 
+int wine_hack = FALSE;
+
 int trusted_uid = -1;
 #if __linux__
 char *root_userns = NULL;
@@ -77,6 +79,7 @@ typedef struct {
     int uid;
     int wm; /* True if the client is a window manager process */
     int is_trusted;
+    int wineapp;
     TimeStamp lastInput;
     TimeStamp selReqTS;
     TimeStamp createTime;
@@ -166,6 +169,7 @@ typedef enum {
     OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
+    OPTION_WINEHACK,
     THE_END_OF_OPTIONS
 } ALTSecOpts;
 
@@ -177,6 +181,7 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_SHARE_SELECTIONS,	"SharedSelections",	OPTV_STRING,	{0},	FALSE},
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
+    {OPTION_WINEHACK,		"WineHack",		OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
@@ -366,6 +371,30 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
     return 0;
 }
 
+static int
+is_wineapp(pid_t pid)
+{
+    char exe_path[32];
+    char real_path[PATH_MAX];
+    ssize_t len;
+
+    snprintf(exe_path, sizeof(exe_path), "/proc/%d/exe", pid);
+
+    if ((len = readlink(exe_path, real_path, sizeof(real_path))) < 0)
+	return 0;
+
+    real_path[len] = '\0';
+
+    DEBUG("is_wineapp: exe_path = %s, real_path = %s\n",
+	    exe_path, real_path);
+
+    if (strstr(real_path, "/wine-preload") != NULL
+     || strstr(real_path, "/wine64-preload") != NULL)
+	return 1;
+
+    return 0;
+}
+
 #if 0
 static void
 clear_last_focused()
@@ -477,6 +506,10 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
     xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &ALTSecPermanent);
     xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &ALTSecStrict);
+    xf86GetOptValBool(ALTSecOptions, OPTION_WINEHACK, &wine_hack);
+
+    if (wine_hack)
+	INFO("Setup: enable Wine hack.\n");
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
@@ -692,6 +725,13 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			pClientPriv->is_trusted = 1;
 			INFO("client #6: client is trusted\n");
 		    }
+
+		    if (wine_hack && is_wineapp(pClientPriv->pid)) {
+			pClientPriv->wineapp = 1;
+			INFO("client #%d is a Wine app\n", pci->client->index);
+		    } else {
+			pClientPriv->wineapp = 0;
+		    }
 		}
 
 
@@ -830,6 +870,12 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 
     if (clients[cid] != NULL) {
 	obj = dixLookupPrivate(&clients[cid]->devPrivates, asec_client_key);
+
+	/* IDK how to handle it properly, just make
+	 * Wine apps happy if user want to. */
+	if (wine_hack && subj->wineapp && obj->wineapp)
+	    return;
+
 	if ((!ALTSecStrict && (subj->uid == obj->uid))
 		|| (subj->pid == obj->pid)
 		|| ((rec->access_mode | allowed) == allowed))
@@ -1191,6 +1237,11 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	    DEBUG("Receive: focus change: client #%d, uid=%d, pid=%d\n",
 		    lastFocused.cid, lastFocused.uid, lastFocused.pid);
 	}
+
+	/* IDK how to handle it properly, just make
+	 * Wine apps happy if user want to. */
+	if (wine_hack && subj->wineapp && obj->wineapp)
+	    continue;
 
 	if (is_trusted_client(rec->client))
 	    continue;
