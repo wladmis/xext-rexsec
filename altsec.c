@@ -1273,17 +1273,20 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	    return;
 
 	for (int i = 0; i < rec->count; i++) {
-	    if ((rec->events[i].u.u.type & 127) != UnmapNotify
-		&& (rec->events[i].u.u.type & 127) != ConfigureRequest
-		&& (rec->events[i].u.u.type & 127) != ClientMessage
-		&& (rec->events[i].u.u.type & 127) != SelectionNotify
-		&& (rec->events[i].u.u.type & 127) != PropertyNotify
-		&& (rec->events[i].u.u.type & 127) != DestroyNotify) {
+	    int evtype = rec->events[i].u.u.type & 127;
+	    if (evtype == UnmapNotify
+	     || evtype == ConfigureRequest
+	     || evtype == ClientMessage
+	     || evtype == SelectionNotify
+	     || evtype == PropertyNotify
+	     || evtype == DestroyNotify) {
+		continue;
+	    } else {
 		LOG("Send: deny client #%d (uid=%d, pid=%d) "
 		    "from sending event of type %s to window 0x%lx of "
 		    "client #%d (uid=%d, pid=%d)\n",
 			rec->client->index, subj->uid, subj->pid,
-			LookupEventName(rec->events[i].u.u.type),
+			LookupEventName(evtype),
 			(unsigned long)rec->pWin->drawable.id,
 			wClient(rec->pWin)->index, obj->uid, obj->pid);
 		rec->status = BadAccess;
