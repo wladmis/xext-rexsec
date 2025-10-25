@@ -147,7 +147,7 @@ Here is an examplee of 90-altsec.conf file, which should reside in
             Option "SharedSelections" "_NET_SYSTEM_TRAY_S0"
             # A list of clients that should be considered trusted when
             # started after secured phase.
-            Option "TrustedClients" "dmenu:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass"
+            Option "TrustedClients" "dmenu:xkill:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass"
             # Increase log level
             Option "LogLevel" "1"
         EndSubSection
