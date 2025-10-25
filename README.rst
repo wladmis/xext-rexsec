@@ -232,6 +232,15 @@ TrustedClients   A colon-separated list of executables which clients     *None*
 
                  On non-Linux systems you should provide only full
                  pathname to the executable, any others will be ignored.
+
+SpyMode          When enabled, allow to temporary grant to a client an   ``False``
+                 ability to read other clients property (but do not
+                 change them) via following keypress combination:
+                 ``Control-Alt-Equal (=)``. To revoke the ability, use
+                 ``Control-Alt-Shift-Equal (=)``.
+                 It can be useful for screen sharing.
+                 There can be only one client in the SpyMode at the
+                 time.
 ================ ======================================================= =============
 
 NOTE
