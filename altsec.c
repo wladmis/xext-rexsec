@@ -46,6 +46,7 @@ enum {
 #define LOG(...) LogMessage(X_INFO, ALTSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
+int spy_mode = 0;
 
 int trusted_uid = -1;
 #if __linux__
@@ -74,6 +75,8 @@ struct {
 DevPrivateKeyRec asec_client_key_rec;
 #define asec_client_key (&asec_client_key_rec)
 typedef struct {
+    int live;
+    int spymode;
     pid_t pid;
     int uid;
 #if __linux__
@@ -179,6 +182,7 @@ typedef enum {
     OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
+    OPTION_SPYMODE,
     THE_END_OF_OPTIONS
 } ALTSecOpts;
 
@@ -190,6 +194,7 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_SHARE_SELECTIONS,	"SharedSelections",	OPTV_STRING,	{0},	FALSE},
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
+    {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
@@ -285,6 +290,41 @@ is_sub_matched(const char *str, const char **list)
 	    return 1;
 
     return 0;
+}
+
+struct {
+    int on;
+    int cid;
+#if __linux__
+    ino_t ino, root_ino, userns;
+    int uid;
+    int major, minor;
+#endif /* __linux__ */
+} SpyClient;
+
+static int
+is_spyclient(ALTSecClientPtr client_priv)
+{
+    if (client_priv->spymode)
+	return 1;
+
+#if __linux__
+    if (!SpyClient.on)
+	return 0;
+
+    if (client_priv->ino != SpyClient.ino
+     || client_priv->userns != SpyClient.userns
+     || client_priv->root_ino != SpyClient.root_ino
+     || client_priv->major != SpyClient.major
+     || client_priv->minor != SpyClient.minor
+     || client_priv->uid != SpyClient.uid)
+	return 0;
+
+    return 1;
+#else /* ! __linux__ */
+    return 0;
+#endif /* __linux__ */
+
 }
 
 static int
@@ -549,6 +589,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
     xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &ALTSecPermanent);
     xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &ALTSecStrict);
+    xf86GetOptValBool(ALTSecOptions, OPTION_SPYMODE, &spy_mode);
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
@@ -718,6 +759,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
     switch (pci->client->clientState) {
 	case ClientStateInitial:
+	    pClientPriv->live = 1;
 	    pClientPriv->wm = 0;
 	    pClientPriv->pid = (pid_t) 0;
 	    pClientPriv->uid = -1;
@@ -805,6 +847,12 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    break;
 
 	case ClientStateGone:
+	    pClientPriv->live = 0;
+	    pClientPriv->spymode = 0;
+	    if (pci->client->index == SpyClient.cid) {
+		SpyClient.cid = 0;
+		SpyClient.on = 0;
+	    }
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
 
@@ -872,6 +920,9 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	return;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
+
+    if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
+	return;
 
     if (!ALTSecStrict && is_trusted_uid(subj->uid))
 	return;
@@ -1067,6 +1118,9 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
      * it made it more complex, so I dropped it for now. */
 passthru:
     DEBUG("Property: passthru to non clipboard properties.\n");
+    if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
+	return;
+
     /* Hanble non-clipboard properties. */
     if (rec->access_mode & (DixCreateAccess | DixWriteAccess)) {
 	/* Label newly created properties. */
@@ -1460,6 +1514,55 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 }
 
 void
+ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+{
+#define EQUAL_KC 0x0015
+    if (!spy_mode)
+	return;
+
+    XaceKeyAvailRec *rec = calldata;
+
+    if (rec->event->u.u.type != KeyRelease)
+	return;
+
+    if (rec->event->u.u.detail != EQUAL_KC)
+	return;
+
+    ALTSecClientPtr client_priv = dixLookupPrivate(&(lastFocused.client)->devPrivates, asec_client_key);
+    if (!client_priv || !client_priv->live)
+	return;
+
+    if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask)) {
+	client_priv->spymode = 1;
+	SpyClient.on = 1;
+	SpyClient.cid = lastFocused.cid;
+#if __linux__
+	SpyClient.ino = client_priv->ino;
+	SpyClient.major = client_priv->major;
+	SpyClient.minor = client_priv->minor;
+	SpyClient.uid = client_priv->uid;
+	SpyClient.userns = client_priv->userns;
+	SpyClient.root_ino = client_priv->root_ino;
+#endif /* __linux__ */
+	INFO("SpyMode: client #%d is in spymode now\n", lastFocused.cid);
+    } else if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask|ShiftMask)
+	    && is_spyclient(client_priv)) {
+	client_priv->spymode = 0;
+	SpyClient.on = 0;
+#if __linux__
+	if (clients[SpyClient.cid] != NULL) {
+	    client_priv = dixLookupPrivate(&clients[SpyClient.cid]->devPrivates, asec_client_key);
+	    if (is_spyclient(client_priv)) {
+		client_priv->spymode = 0;
+	    }
+	}
+	SpyClient.cid = 0;
+#endif /* __linux__ */
+	INFO("SpyMode: client #%d is out of spymode now\n", lastFocused.cid);
+    }
+}
+
+void
 altsecExtensionInit()
 {
     if (AddCallback(&ClientStateCallback, ALTSecClientState, NULL) != TRUE)
@@ -1494,6 +1597,10 @@ altsecExtensionInit()
 
     if (XaceRegisterCallback(XACE_SERVER_ACCESS, ALTServerAccess, NULL) != TRUE) {
 	FatalError("ALTSecurity: could not register server access callback\n");
+    }
+
+    if (XaceRegisterCallback(XACE_KEY_AVAIL, ALTSecKeyAvailable, NULL) != TRUE) {
+	FatalError("ALTSecurity: could not register key available callback\n");
     }
 }
 
