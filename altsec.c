@@ -360,60 +360,51 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 
     /* TODO: add proper support for non-Linux systems. */
 #if __linux__
-    char exe_path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/exe") */
-    char real_path[PATH_MAX];
-    char root_path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/root") */
-    char real_root_path[PATH_MAX]; /* We do not care about the full path */
-    char userns_path[64]; /* 64 bytes should be enough for sizeof("/proc/%d/ns/user") */
-    char userns[32]; /* 32 bytes should be enough for "/proc/%d/ns/user" value */
-    ssize_t len;
+#define REALPATH_ERRFMT "is_proc_client_trusted error during resolving %s: %s\n"
+#define REALPATH_ERR LOG(REALPATH_ERRFMT, pid_path, strerror(errno));
 
-    snprintf(root_path, sizeof(root_path), "/proc/%d/root", pid);
+    char pid_path[64];
+    char resolved_path[PATH_MAX];
 
-    if ((len = readlink(root_path, real_root_path, sizeof(real_root_path))) < 0)
+    snprintf(pid_path, sizeof(pid_path), "/proc/%d/root", pid);
+    DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
+
+    if (realpath(pid_path, resolved_path) == NULL) {
+	REALPATH_ERR;
 	return 0;
+    }
 
-    if (len >= sizeof(real_root_path))
-	return 0;
-
-    real_root_path[len] = '\0';
-
-    DEBUG("is_proc_client_trusted: root_path = %s, real_root_path = %s\n",
-	    root_path, real_root_path);
+    DEBUG("is_proc_client_trusted: %s -> %s\n", pid_path, resolved_path);
 
     /* Chrooted clients are not trusted. */
-    if (strcmp(real_root_path, "/") != 0)
+    if (strcmp(resolved_path, "/") != 0)
 	return 0;
 
     if (root_userns != NULL) {
-	snprintf(userns_path, sizeof(userns_path), "/proc/%d/ns/user", pid);
-	if ((len = readlink(userns_path, userns, sizeof(userns))) < 0)
+	snprintf(pid_path, sizeof(pid_path), "/proc/%d/ns/user", pid);
+	DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
+	if (realpath(pid_path, resolved_path) == NULL) {
+	    REALPATH_ERR;
 	    return 0;
-	userns[len] = '\0';
+	}
 
-	DEBUG("is_proc_client_trusted: userns_path = %s, userns = %s\n",
-		userns_path, userns);
+	DEBUG("is_proc_client_trusted: %s -> %s\n", pid_path, resolved_path);
 
-	if (strcmp(root_userns, userns) != 0)
+	if (strcmp(root_userns, resolved_path) != 0)
 	    return 0;
     }
 
-    snprintf(real_path, sizeof(real_path), "/proc/%d/exe", pid);
+    snprintf(pid_path, sizeof(pid_path), "/proc/%d/exe", pid);
+    DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
+    if (realpath(pid_path, resolved_path) == NULL) {
+	REALPATH_ERR;
+	return 0;
+    }
 
-    do {
-	strncpy(exe_path, real_path, sizeof(exe_path));
+    DEBUG("is_proc_client_trusted: %s -> %s\n", pid_path, resolved_path);
 
-	if ((len = readlink(exe_path, real_path, sizeof(real_path))) < 0)
-	    return 0;
-
-	real_path[len] = '\0';
-
-	DEBUG("is_proc_client_trusted: exe_path = %s, real_path = %s\n",
-		exe_path, real_path);
-
-	if (is_matched(real_path, (const char **) ALTSecTrustedClients))
-	    return 1;
-    } while (strcmp(exe_path, real_path));
+    if (is_matched(resolved_path, (const char **) ALTSecTrustedClients))
+	return 1;
 #endif /* __linux__ */
 
     return 0;
@@ -623,14 +614,11 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
 #if __linux__
     /* Assume that you cannot run Xorg in non-root user namespace. */
-    char buf[PATH_MAX];
-    ssize_t nslink_size;
-    if ((nslink_size = readlink("/proc/self/ns/user", buf, PATH_MAX)) != -1) {
-	buf[nslink_size] = '\0';
-	root_userns = strdup(buf);
+    if ((root_userns = realpath("/proc/self/ns/user", NULL)) != NULL) {
 	DEBUG("altsecSetup: root namespace value is %s\n", root_userns);
     } else {
-	DEBUG("altsecSetup: could not obtain a value of root namespace\n");
+	DEBUG("altsecSetup: could not obtain a value of root namespace: %s\n",
+		strerror(errno));
     }
 #endif /* __linux__ */
 
