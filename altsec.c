@@ -132,12 +132,12 @@ typedef struct {
  * will be removed in the future in favor
  * of more granular local policies.
  */
-char **ALTSecAllowedExt = NULL;
-char **ALTSecSharedProps = NULL;
-char **ALTSecSharedSels = NULL;
-char **ALTSecTrustedClients = NULL;
-int ALTSecPermanent = 1;
-int ALTSecStrict = 1;
+char **add_ext_list = NULL;
+char **shared_props_list = NULL;
+char **shared_sels_list = NULL;
+char **trusted_clients_list = NULL;
+int permanent = 1;
+int strict = 1;
 
 /* Similar from X11 Security extension */
 const Mask ALTSecResourceMask =
@@ -346,7 +346,7 @@ is_trusted_client(ClientPtr client)
 
     subj = dixLookupPrivate(&client->devPrivates, asec_client_key);
 
-    if (!ALTSecStrict && is_trusted_uid(subj->uid))
+    if (!strict && is_trusted_uid(subj->uid))
 	return 1;
 
     return subj->is_trusted;
@@ -355,7 +355,7 @@ is_trusted_client(ClientPtr client)
 static int
 is_proc_client_trusted(const char *cmdname, pid_t pid)
 {
-    if (is_matched(cmdname, (const char **) ALTSecTrustedClients))
+    if (is_matched(cmdname, (const char **) trusted_clients_list))
 	return 1;
 
     /* TODO: add proper support for non-Linux systems. */
@@ -403,7 +403,7 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 
     DEBUG("is_proc_client_trusted: %s -> %s\n", pid_path, resolved_path);
 
-    if (is_matched(resolved_path, (const char **) ALTSecTrustedClients))
+    if (is_matched(resolved_path, (const char **) trusted_clients_list))
 	return 1;
 #endif /* __linux__ */
 
@@ -492,10 +492,10 @@ construct_trusted_clients_list(const char *str)
 
     int size = 0;
     for (char **iter = tmp; *iter; iter++, size++);
-    ALTSecTrustedClients = calloc(size + 1, sizeof(*ALTSecTrustedClients));
-    if (ALTSecTrustedClients == NULL)
+    trusted_clients_list = calloc(size + 1, sizeof(*trusted_clients_list));
+    if (trusted_clients_list == NULL)
 	FatalError("construct_trusted_clients_list:"
-		"could not allocate memory for ALTSecTrustedClients, size = %d\n",
+		"could not allocate memory for trusted_clients_list, size = %d\n",
 		size);
 
     int i = 0;
@@ -504,7 +504,7 @@ construct_trusted_clients_list(const char *str)
     for (char **iter = tmp; *iter; iter++) {
 	/* copy abs path as it is. */
 	if ((*iter)[0] == '/') {
-	    ALTSecTrustedClients[i++] = strdup(*iter);
+	    trusted_clients_list[i++] = strdup(*iter);
 	    DEBUG("construct_trusted_clients_list: add %s\n", *iter);
 	    continue;
 	}
@@ -522,7 +522,7 @@ construct_trusted_clients_list(const char *str)
 	    if (stat(path, &sb) < 0 || !(sb.st_mode & S_IFREG))
 		continue;
 
-	    ALTSecTrustedClients[i++] = strdup(path);
+	    trusted_clients_list[i++] = strdup(path);
 	    DEBUG("construct_trusted_clients_list: add %s\n", path);
 	    break;
 	}
@@ -530,15 +530,15 @@ construct_trusted_clients_list(const char *str)
 
     size = i;
 
-    ALTSecTrustedClients[i] = NULL;
+    trusted_clients_list[i] = NULL;
 
-    tcl_tmp = reallocarray(ALTSecTrustedClients, size, sizeof(*ALTSecTrustedClients));
+    tcl_tmp = reallocarray(trusted_clients_list, size, sizeof(*trusted_clients_list));
     if (tcl_tmp == NULL)
 	FatalError("construct_trusted_clients_list:"
-		"could not realloc memory fo ALTSecTrustedClients, size = %d\n",
+		"could not realloc memory fo trusted_clients_list, size = %d\n",
 		size);
 
-    ALTSecTrustedClients = tcl_tmp;
+    trusted_clients_list = tcl_tmp;
 }
 
 static void *
@@ -578,8 +578,8 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86ProcessOptions(-1, opts, ALTSecOptions);
 
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
-    xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &ALTSecPermanent);
-    xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &ALTSecStrict);
+    xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &permanent);
+    xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &strict);
     xf86GetOptValBool(ALTSecOptions, OPTION_SPYMODE, &spy_mode);
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
@@ -592,21 +592,21 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	strcat(ext_str, opt_exts);
     }
 
-    ALTSecAllowedExt = make_str_list(ext_str);
+    add_ext_list = make_str_list(ext_str);
     free(ext_str);
 
-    if (!ALTSecAllowedExt) {
+    if (!add_ext_list) {
 	ret = NULL;
 	goto exit;
     }
 
     const char *shared_props = xf86GetOptValString(ALTSecOptions, OPTION_SHARED_PROPS);
     if (shared_props != NULL)
-	ALTSecSharedProps = make_str_list(shared_props);
+	shared_props_list = make_str_list(shared_props);
 
     const char *shared_sels = xf86GetOptValString(ALTSecOptions, OPTION_SHARE_SELECTIONS);
     if (shared_sels != NULL)
-	ALTSecSharedSels = make_str_list(shared_sels);
+	shared_sels_list = make_str_list(shared_sels);
 
     const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
     if (trusted_clients != NULL)
@@ -624,14 +624,14 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
 exit:
     if (!ret) {
-	if (ALTSecAllowedExt)
-	    free(ALTSecAllowedExt);
+	if (add_ext_list)
+	    free(add_ext_list);
 
-	if (ALTSecSharedProps)
-	    free(ALTSecSharedProps);
+	if (shared_props_list)
+	    free(shared_props_list);
 
-	if (ALTSecSharedSels)
-	    free(ALTSecSharedSels);
+	if (shared_sels_list)
+	    free(shared_sels_list);
     } else {
 	LoadExtensionList(&altsecExt, 1 , FALSE);
     }
@@ -791,7 +791,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
 		    /* If Strict option is enabled, and client is on the list
 		     * of trusted client, mark it as trusted. */
-		    if (ALTSecStrict
+		    if (strict
 			    && trusted_uid > 0
 			    && pClientPriv->uid == trusted_uid
 			    && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
@@ -826,7 +826,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    }
 		}
 
-		if (!ALTSecStrict && (creds->euid == trusted_uid))
+		if (!strict && (creds->euid == trusted_uid))
 		    pClientPriv->is_trusted = 1;
 
 		FreeLocalClientCreds(creds);
@@ -844,7 +844,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
 
-		if(!ALTSecPermanent) {
+		if(!permanent) {
 		    /* Window Manager exits, stop protecting entities */
 		    trusted_uid = -1;
 		    wmpid = -1;
@@ -878,7 +878,7 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (is_trusted_client(rec->client))
 	return;
 
-    if (is_matched(rec->ext->name, (const char **) ALTSecAllowedExt))
+    if (is_matched(rec->ext->name, (const char **) add_ext_list))
 	return;
 
     LOG("Extension: Deny client #%d uid %d access %#x to extension %s\n",
@@ -912,7 +912,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
 	return;
 
-    if (!ALTSecStrict && is_trusted_uid(subj->uid))
+    if (!strict && is_trusted_uid(subj->uid))
 	return;
 
     if (rec->rtype == RT_WINDOW)
@@ -949,7 +949,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	if (are_equal_clients(subj, obj))
 	    return;
 
-	if ((!ALTSecStrict && (subj->uid == obj->uid))
+	if ((!strict && (subj->uid == obj->uid))
 		|| (subj->pid == obj->pid)
 		|| ((rec->access_mode | allowed) == allowed))
 	    return;
@@ -979,7 +979,7 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     ALTSecClientPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
     if (is_trusted_client(rec->client)
-	    || (!ALTSecStrict && is_trusted_uid(subj->uid))
+	    || (!strict && is_trusted_uid(subj->uid))
 	    || (rec->access_mode & (DixGetAttrAccess | DixGrabAccess)))
 	return;
 
@@ -1057,7 +1057,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		propName,
 		wClient(rec->pWin)->index);
 
-    if (is_matched(propName, (const char **) ALTSecSharedProps))
+    if (is_matched(propName, (const char **) shared_props_list))
 	return;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
@@ -1156,7 +1156,7 @@ passthru:
 		    (subj->pid == wobj->pid ||
 		     subj->pid == obj->pid))
 		/* allow */;
-	    else if (!ALTSecStrict && (subj->uid == wobj->uid))
+	    else if (!strict && (subj->uid == wobj->uid))
 		/* allow */;
 	    else if (rec->client == serverClient)
 		/* allow */;
@@ -1177,7 +1177,7 @@ passthru:
 	    || ((obj->wm || client->index == wmcid || client == serverClient)
 		&& (rec->access_mode & allowed))
 	    || are_equal_clients(subj, cobj)
-	    || (!ALTSecStrict && (subj->uid == obj->uid))
+	    || (!strict && (subj->uid == obj->uid))
 	    || subj->pid == obj->pid
 	    || subj->pid == wobj->pid
 	    || subj->is_trusted
@@ -1251,7 +1251,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 
 	obj = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
 
-	if (!ALTSecStrict && (subj->uid == obj->uid))
+	if (!strict && (subj->uid == obj->uid))
 	    return;
 
 	if (subj->pid == obj->pid)
@@ -1336,7 +1336,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	if (wClient(rec->pWin) == serverClient)
 	    continue;
 
-	if ((!ALTSecStrict && (subj->uid == obj->uid))
+	if ((!strict && (subj->uid == obj->uid))
 		|| subj->pid == obj->pid)
 	    continue;
 
@@ -1387,7 +1387,7 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (!atom_name)
 	return;
 
-    if (is_matched(atom_name, (const char **) ALTSecSharedSels))
+    if (is_matched(atom_name, (const char **) shared_sels_list))
 	return;
 
     if (strcmp(atom_name, "PRIMARY") != 0 &&
@@ -1462,7 +1462,7 @@ passthru:
 	int selpid = creds->pid;
 	FreeLocalClientCreds(creds);
 
-	if ((!ALTSecStrict && (recuid != seluid))
+	if ((!strict && (recuid != seluid))
 		|| (recpid != selpid)) {
 	    goto deny;
 	}
@@ -1490,12 +1490,12 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
-    if (!ALTSecStrict && is_trusted_uid(subj->uid))
+    if (!strict && is_trusted_uid(subj->uid))
 	return;
 
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
-    if ((!ALTSecStrict && (subj->uid == obj->uid))
+    if ((!strict && (subj->uid == obj->uid))
 	    || are_equal_clients(subj, obj)
 	    || (rec->access_mode | allowed) == allowed)
 	return;
