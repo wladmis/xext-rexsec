@@ -97,7 +97,7 @@ typedef struct {
     TimeStamp selReqTS;
     TimeStamp createTime;
     int no_input;
-} ALTSecClientRec, *ALTSecClientPtr;
+} AClientPrivRec, *AClientPrivPtr;
 
 DevPrivateKeyRec asec_prop_key_rec;
 #define asec_prop_key (&asec_prop_key_rec)
@@ -109,14 +109,14 @@ typedef struct {
     int poly; /* property is polyinstalled */
     int wm; /* property is handled by window manager */
     int is_faked;
-} ALTSecPropRec, *ALTSecPropPtr;
+} APropPrivRec, *APropPrivPtr;
 
 DevPrivateKeyRec asec_window_key_rec;
 #define asec_window_key (&asec_window_key_rec)
 typedef struct {
     pid_t pid;
     int uid;
-} ALTSecWinRec, *ALTSecWinPtr;
+} ASecWinPrivRec, *AWinPrivPtr;
 
 DevPrivateKeyRec asec_sel_key_rec;
 #define asec_sel_key (&asec_sel_key_rec)
@@ -125,7 +125,7 @@ typedef struct {
     TimeStamp ts;
     int poly;
     int is_faked;
-} ALTSecSelRec, *ALTSecSelPtr;
+} ASelPrivRec, *ASelPrivPtr;
 
 /**
  * These lists are considered as hacks and
@@ -303,7 +303,7 @@ struct {
 } SpyClient;
 
 static int
-is_spyclient(ALTSecClientPtr client_priv)
+is_spyclient(AClientPrivPtr client_priv)
 {
     if (client_priv->spymode)
 	return 1;
@@ -342,7 +342,7 @@ is_trusted_uid(int uid)
 static int
 is_trusted_client(ClientPtr client)
 {
-    ALTSecClientPtr subj;
+    AClientPrivPtr subj;
 
     subj = dixLookupPrivate(&client->devPrivates, asec_client_key);
 
@@ -412,7 +412,7 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 
 #if __linux__
 void
-fill_client_stats(ALTSecClientPtr client, pid_t pid)
+fill_client_stats(AClientPrivPtr client, pid_t pid)
 {
     char path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/(exe|root|ns/user)") */
     struct stat sb;
@@ -447,7 +447,7 @@ fill_client_stats(ALTSecClientPtr client, pid_t pid)
 }
 
 static int
-are_equal_clients(ALTSecClientPtr c1, ALTSecClientPtr c2)
+are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 {
     /* In case we don't have stats */
     if (c1->ino == 0 || c2->ino == 0
@@ -647,19 +647,19 @@ altsecModuleInit(INITARGS)
     if (!once) {
 	once++;
 
-	if (!dixRegisterPrivateKey(asec_client_key, PRIVATE_CLIENT, sizeof(ALTSecClientRec))) {
+	if (!dixRegisterPrivateKey(asec_client_key, PRIVATE_CLIENT, sizeof(AClientPrivRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_client_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(ALTSecClientRec))) {
+	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(AClientPrivRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_window_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(ALTSecPropRec))) {
+	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(APropPrivRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_prop_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(ALTSecSelRec))) {
+	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(ASelPrivRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_sel_key\n");
 	}
 
@@ -697,7 +697,7 @@ enum {
 static int
 checkClipboardAccess(ClientPtr client, int is_selection, unsigned int timegap)
 {
-    ALTSecClientPtr pClientPriv;
+    AClientPrivPtr pClientPriv;
     TimeStamp ClipReq;
 
     pClientPriv = dixLookupPrivate(&client->devPrivates, asec_client_key);
@@ -740,7 +740,7 @@ static void
 ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     NewClientInfoRec *pci = calldata;
-    ALTSecClientPtr pClientPriv;
+    AClientPrivPtr pClientPriv;
     LocalClientCredRec *creds;
 
     pClientPriv = dixLookupPrivate(&pci->client->devPrivates, asec_client_key);
@@ -871,7 +871,7 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 {
     XaceExtAccessRec *rec = calldata;
 
-    ALTSecClientPtr subj;
+    AClientPrivPtr subj;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
@@ -894,7 +894,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 {
     XaceResourceAccessRec *rec = calldata;
     /* WindowPtr pWin; */
-    ALTSecClientPtr subj, obj = NULL;
+    AClientPrivPtr subj, obj = NULL;
     /* ClientPtr pClient = rec->client; */
     XID cid = CLIENT_ID(rec->id);
     /* Allow to set properties and send events so make clipboard work,
@@ -921,7 +921,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if ((rec->rtype == RT_WINDOW) &&
 	(rec->access_mode & DixCreateAccess)) {
 	WindowPtr pWin = (WindowPtr) rec->res;
-	ALTSecWinPtr wobj = dixLookupPrivate(&pWin->devPrivates, asec_window_key);
+	AWinPrivPtr wobj = dixLookupPrivate(&pWin->devPrivates, asec_window_key);
 
 	wobj->uid = subj->uid;
 	wobj->pid = subj->pid;
@@ -976,7 +976,7 @@ void
 ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceServerAccessRec *rec = calldata;
-    ALTSecClientPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
+    AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
     if (is_trusted_client(rec->client)
 	    || (!strict && is_trusted_uid(subj->uid))
@@ -1045,9 +1045,9 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     ClientPtr client = wClient(rec->pWin);
     ATOM name = (*rec->ppProp)->propertyName;
     const char *propName = NameForAtom(name);
-    ALTSecClientPtr subj, cobj;
-    ALTSecPropPtr obj;
-    ALTSecWinPtr wobj;
+    AClientPrivPtr subj, cobj;
+    APropPrivPtr obj;
+    AWinPrivPtr wobj;
     Mask allowed = ALTSecResourceMask | DixReadAccess;
 
     if (loglevel >= LL_TRACE)
@@ -1188,7 +1188,7 @@ passthru:
     }
 
     /* Do not consider a client focused if it set no input hint */
-    ALTSecClientPtr wcobj = dixLookupPrivate(&client->devPrivates, asec_client_key);
+    AClientPrivPtr wcobj = dixLookupPrivate(&client->devPrivates, asec_client_key);
     if (strcmp(propName, "WM_HINTS") == 0
 	    && pProp->size >= 5 /* should always be true, but just in case */
 	    && (((char *) pProp->data)[0] & (char) 1)) {
@@ -1226,8 +1226,8 @@ void
 ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceSendAccessRec *rec = calldata;
-    ALTSecClientPtr subj;
-    ALTSecClientPtr obj;
+    AClientPrivPtr subj;
+    AClientPrivPtr obj;
 
     if (loglevel >= LL_TRACE)
 	for (int i = 0; i < rec->count; i++)
@@ -1290,7 +1290,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 {
     XaceReceiveAccessRec *rec = calldata;
 
-    ALTSecClientPtr subj, obj;
+    AClientPrivPtr subj, obj;
     Atom event;
 
     if (loglevel >= LL_TRACE)
@@ -1372,14 +1372,14 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (!rec->client)
 	return;
 
-    ALTSecClientPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
+    AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
     Selection *pSel = *rec->ppSel;
 
     if (!pSel || !pSel->selection)
 	return;
 
-    ALTSecSelPtr obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
+    ASelPrivPtr obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
 
     Atom name = pSel->selection;
     const char *atom_name = NameForAtom(name);
@@ -1486,7 +1486,7 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
     if (is_trusted_client(rec->client))
 	return;
 
-    ALTSecClientPtr subj, obj;
+    AClientPrivPtr subj, obj;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
@@ -1519,7 +1519,7 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
     if (rec->event->u.u.detail != EQUAL_KC)
 	return;
 
-    ALTSecClientPtr client_priv = dixLookupPrivate(&(lastFocused.client)->devPrivates, asec_client_key);
+    AClientPrivPtr client_priv = dixLookupPrivate(&(lastFocused.client)->devPrivates, asec_client_key);
     if (!client_priv || !client_priv->live)
 	return;
 
