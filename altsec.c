@@ -134,7 +134,6 @@ typedef struct {
  */
 char **add_ext_list = NULL;
 char **shared_props_list = NULL;
-char **shared_sels_list = NULL;
 char **trusted_clients_list = NULL;
 int permanent = 1;
 int strict = 1;
@@ -179,7 +178,6 @@ typedef enum {
     OPTION_LOGLEVEL,
     OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
-    OPTION_SHARE_SELECTIONS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
     OPTION_SPYMODE,
@@ -191,7 +189,6 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
-    {OPTION_SHARE_SELECTIONS,	"SharedSelections",	OPTV_STRING,	{0},	FALSE},
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
@@ -274,19 +271,6 @@ is_matched(const char *str, const char **list)
 
     for (const char **iter = list; *iter; iter++)
 	if (strcmp(*iter, str) == 0)
-	    return 1;
-
-    return 0;
-}
-
-static int
-is_sub_matched(const char *str, const char **list)
-{
-    if (!list)
-	return 0;
-
-    for (const char **iter = list; *iter; iter++)
-	if (strncmp(*iter, str, strlen(*iter)) == 0)
 	    return 1;
 
     return 0;
@@ -449,6 +433,9 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 static int
 are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 {
+    if (c1->pid == c2->pid)
+	return 1;
+
     /* In case we don't have stats */
     if (c1->ino == 0 || c2->ino == 0
      || c1->root_ino == 0 || c2->root_ino == 0
@@ -604,10 +591,6 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     if (shared_props != NULL)
 	shared_props_list = make_str_list(shared_props);
 
-    const char *shared_sels = xf86GetOptValString(ALTSecOptions, OPTION_SHARE_SELECTIONS);
-    if (shared_sels != NULL)
-	shared_sels_list = make_str_list(shared_sels);
-
     const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
     if (trusted_clients != NULL)
 	construct_trusted_clients_list(trusted_clients);
@@ -629,9 +612,6 @@ exit:
 
 	if (shared_props_list)
 	    free(shared_props_list);
-
-	if (shared_sels_list)
-	    free(shared_sels_list);
     } else {
 	LoadExtensionList(&altsecExt, 1 , FALSE);
     }
@@ -992,27 +972,12 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 void
 ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
-    /* FIXME: handle me in the right way! */
-    /* It seems that XACE does not cover SelectionNotify so I cannot obtain
-     * information about the right property to handle. */
-    /* List of the clipboard properties handled by ALTSec.
-     * If HandleClipboard option is enabled, allow to the current focused
-     * window to get the clipboard content.
-     * The list is probably incomplete */
-    static const char *ClipboardProperties[] = {
-	"CLIPBOARD",
-	"GDK_SELECTION",
-	"XCLIP_OUT",
-	"_QT_SELECTION",
-	"_XT_SELECTION_",
-	NULL
-    };
-
     static const char *AppWinProperties[] = {
 	"GDK_VISUALS",
 	"WM_CLASS",
 	"WM_CLIENT_MACHINE",
 	"WM_COMMAND",
+	"WM_HINTS",
 	"WM_NAME",
 	"WM_NORMAL_HINTS",
 	"_NET_WM_DESKTOP",
@@ -1024,201 +989,174 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     };
 
     static const char *WMProperties[] = {
-	"_NET_SUPPORTED",
 	"_NET_CLIENT_LIST",
-	"_NET_NUMBER_OF_DESKTOPS",
-	"_NET_DESKTOP_GEOMETRY",
 	"_NET_CURRENT_DESKTOP",
+	"_NET_DESKTOP_GEOMETRY",
 	"_NET_DESKTOP_NAMES",
-	"_NET_WORKAREA",
+	"_NET_NUMBER_OF_DESKTOPS",
+	"_NET_SUPPORTED",
 	"_NET_SUPPORTING_WM_CHECK",
+	"_NET_WORKAREA",
 	NULL
     };
 
     XacePropertyAccessRec *rec = calldata;
-    int is_selection = 0;
 
     if (rec->access_mode & DixPostAccess)
 	return;
 
     PropertyPtr pProp = *rec->ppProp;
-    ClientPtr client = wClient(rec->pWin);
     ATOM name = (*rec->ppProp)->propertyName;
     const char *propName = NameForAtom(name);
-    AClientPrivPtr subj, cobj;
-    APropPrivPtr obj;
-    AWinPrivPtr wobj;
-    Mask allowed = ALTSecResourceMask | DixReadAccess;
 
-    if (loglevel >= LL_TRACE)
-	LOG("Property (trace): client #%d access %#x property %s for window, owned by client #%d\n",
-		rec->client->index,
-		rec->access_mode,
-		propName,
-		wClient(rec->pWin)->index);
+    DEBUG("Property: client #%d access %#x property %s for window, owned by client #%d\n",
+	    rec->client->index,
+	    rec->access_mode,
+	    propName,
+	    wClient(rec->pWin)->index);
 
     if (is_matched(propName, (const char **) shared_props_list))
 	return;
 
-    subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
-    cobj = dixLookupPrivate(&client->devPrivates, asec_client_key);
-    obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
-    wobj = dixLookupPrivate(&rec->pWin->devPrivates, asec_window_key);
+    AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
+    APropPrivPtr obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
+    AClientPrivPtr wo_priv = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
 
-    if (!is_sub_matched(propName, ClipboardProperties))
-	goto passthru;
+    /* Properties are used for inter-client communications, so let's allow to
+     * send (i.e. create and write) for anyone, if they are not described in
+     * ICCCM and EWMH specs for special usage, but read and destroy by the
+     * property or widnow owners. */
+    if (rec->access_mode & (DixCreateAccess|DixWriteAccess)) {
+	/* Handle property creation separately */
+	if (rec->access_mode & DixCreateAccess) {
+	    /* The target window is the root window (I guess) */
+	    if (rec->pWin->parent == NULL) {
+		DEBUG("Property: client #%d does create access to root window\n",
+			rec->client->index);
+		/* First client that set on of this properties on the rootwin is
+		 * considered as window manager */
+		if (trusted_uid == -1 && is_matched(propName, WMProperties)) {
+		    trusted_uid = subj->uid;
+		    subj->wm = 1;
+		    subj->is_trusted = 1;
+		    wmpid = subj->pid;
+		    wmcid = rec->client->index;
+		    if (rec->client->clientIds->cmdname)
+			wmcmdname = strdup(rec->client->clientIds->cmdname);
+		    if (rec->client->clientIds->cmdargs)
+			wmcmdname = strdup(rec->client->clientIds->cmdargs);
 
-    DEBUG("PropertyAccess: Client #%d uid %d access (access_mode=%#x) clipboard property %s of client #%d\n",
-	    client->index, subj->uid, rec->access_mode, propName, rec->client->index);
+		    INFO("Client #%d with pid %d is a window manager\n",
+			    rec->client->index, rec->client->clientIds->pid);
+		}
 
-    if (rec->access_mode & DixCreateAccess) {
-	if (checkClipboardAccess(client, 0, 0)
-		|| is_trusted_client(client)
-		|| subj->pid == obj->pid)
-	    obj->is_faked = 0;
-	else
-	    obj->is_faked = 1;
-    } else {
-	int is_permitted = checkClipboardAccess(client, 0, 0);
-	while (pProp->propertyName != name
-		|| (obj->is_faked && is_permitted)
-		|| (!is_permitted && subj->pid != obj->pid)) {
-	    if ((pProp = pProp->next) == NULL)
-		break;
-	    obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
-	}
-    }
-
-    if (pProp) {
-	*rec->ppProp = pProp;
-    } else {
-	rec->status = BadMatch;
-	LOG("Property: Deny clipboard property %s access %#x client #%d to client #%d\n",
-		propName,
-		rec->access_mode,
-		rec->client->index,
-		client->index);
-    }
-
-    return;
-
-    /* Originally, the following code had polyinstallation for properties, but
-     * it made it more complex, so I dropped it for now. */
-passthru:
-    DEBUG("Property: passthru to non clipboard properties.\n");
-    if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
-	return;
-
-    /* Hanble non-clipboard properties. */
-    if (rec->access_mode & (DixCreateAccess | DixWriteAccess)) {
-	/* Label newly created properties. */
-	/* The target window is the root window (I guess) */
-	if (rec->pWin->parent == NULL) {
-	    DEBUG("Property: client #%d does create access to root window\n",
-		    rec->client->index);
-	    /* First client that set on of this properties on the rootwin is
-	     * considered as window manager */
-	    if (trusted_uid == -1 && is_matched(propName, WMProperties)) {
-		trusted_uid = subj->uid;
-		subj->wm = 1;
-		obj->wm = 1;
-		subj->is_trusted = 1;
-		wmpid = subj->pid;
-		wmcid = rec->client->index;
-		if (rec->client->clientIds->cmdname)
-		    wmcmdname = strdup(rec->client->clientIds->cmdname);
-		if (rec->client->clientIds->cmdargs)
-		    wmcmdname = strdup(rec->client->clientIds->cmdargs);
-
-		INFO("Client #%d with pid %d is a window manager\n",
-			rec->client->index, rec->client->clientIds->pid);
+		/* According to Application Window Properties specification:
+		 * A Client wishing to change the state of a window MUST send a
+		 * _NET_WM_STATE client message to the root window. */
+		if (is_matched(propName, AppWinProperties))
+		    /* allow */;
+		else if (rec->client == serverClient)
+		    /* allow */;
+		else if (is_trusted_client(rec->client))
+		    /* allow */;
+		else if (!is_matched(propName, WMProperties) || subj->wm)
+		    /* allow  if not reserved for WM */;
+		else
+		    /* Probably break smth */
+		    goto deny;
+	    } else { /* If not root window */
+		if (are_equal_clients(subj, wo_priv)
+			|| rec->client == serverClient
+			|| is_trusted_client(rec->client)
+			|| (!strict && (subj->uid == wo_priv->uid))
+			|| !is_matched(propName, AppWinProperties))
+		    /* allow */;
+		else
+		    goto deny;
 	    }
 
-	    /* According to Application Window Properties specification:
-	     * A Client wishing to change the state of a window MUST send a
-	     * _NET_WM_STATE client message to the root window. */
-	    if (is_matched(propName, AppWinProperties))
-		/* allow */;
-	    else if (rec->client == serverClient)
-		/* allow */;
-	    else if (subj->is_trusted)
-		/* allow */;
-	    else
-		/* Probably break smth */
-		goto deny;
+	    /* Label newly created property. */
+	    if (subj->wm
+		    || rec->client == serverClient)
+		obj->wm = 1;
 
-	} else {
-	    if (subj->is_trusted)
-		/* allow */;
-	    else if (are_equal_clients(subj, cobj))
-		/* allow */;
-	    else if (subj->pid > 0 &&
-		    (subj->pid == wobj->pid ||
-		     subj->pid == obj->pid))
-		/* allow */;
-	    else if (!strict && (subj->uid == wobj->uid))
-		/* allow */;
-	    else if (rec->client == serverClient)
-		/* allow */;
-	    else if (rec->client->index == client->index)
-		/* allow */;
-	    else
-		goto deny;
+	    obj->pid = subj->pid;
+	    obj->uid = subj->uid;
 	}
 
-	/* Label property */
-	obj->uid = subj->uid;
-	obj->pid = subj->pid;
+	if (subj->pid == obj->pid
+		|| (!strict && (subj->uid == obj->uid)))
+	    goto allow_to_write;
 
-	/* Properties set by a Window Manager can be read by anyone */
-	if (subj->wm || rec->client == serverClient)
-	    obj->wm = 1;
-    } else if (rec->client->index == client->index
-	    || ((obj->wm || client->index == wmcid || client == serverClient)
-		&& (rec->access_mode & allowed))
-	    || are_equal_clients(subj, cobj)
-	    || (!strict && (subj->uid == obj->uid))
-	    || subj->pid == obj->pid
-	    || subj->pid == wobj->pid
-	    || subj->is_trusted
-	    || rec->client == serverClient) {
-	return;
-    } else {
+	if (is_trusted_client(rec->client))
+	    goto allow_to_write;
+
+	if (are_equal_clients(subj, wo_priv))
+	    goto allow_to_write;
+
+	if (rec->client == serverClient)
+	    goto allow_to_write;
+
 	goto deny;
-    }
 
-    /* Do not consider a client focused if it set no input hint */
-    AClientPrivPtr wcobj = dixLookupPrivate(&client->devPrivates, asec_client_key);
-    if (strcmp(propName, "WM_HINTS") == 0
-	    && pProp->size >= 5 /* should always be true, but just in case */
-	    && (((char *) pProp->data)[0] & (char) 1)) {
-	if (((char *) pProp->data)[4] == 0) {
-	    DEBUG("WM_HINTS property client #%d will be unfocused\n", client->index);
-	    wcobj->no_input = 1;
-	} else {
-	    DEBUG("WM_HINTS property client #%d will be focused\n", client->index);
-	    wcobj->no_input = 0;
+allow_to_write:
+	/* Do not consider a client focused if it set no input hint */
+	if (strcmp(propName, "WM_HINTS") == 0
+		&& pProp->size >= 5 /* should always be true, but just in case */
+		&& (((char *) pProp->data)[0] & (char) 1)) {
+	    if (((char *) pProp->data)[4] == 0) {
+		DEBUG("WM_HINTS property client #%d will be unfocused\n", wClient(rec->pWin)->index);
+		wo_priv->no_input = 1;
+	    } else {
+		DEBUG("WM_HINTS property client #%d will be focused\n", wClient(rec->pWin)->index);
+		wo_priv->no_input = 0;
+	    }
 	}
+    } else {
+	/* Property set by WM is allowed to read by any client */
+	if (rec->access_mode & (DixReadAccess|DixGetAttrAccess)) {
+	    if (obj->wm || wo_priv->wm)
+		return;
+	}
+
+	/* Clients in spy mode allowed to read properties */
+	if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
+	    return;
+
+	if (wClient(rec->pWin)->index == 0
+		&& (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
+	    return;
+
+	if (subj->pid == obj->pid
+		|| (!strict && (subj->uid == obj->uid)))
+	    return;
+
+	if (is_trusted_client(rec->client))
+	    return;
+
+	if (are_equal_clients(subj, wo_priv))
+	    return;
+
+	goto deny;
     }
 
     return;
 
 deny:
-    LOG("Property: Deny client #%d (pid=%d, uid=%d) access %#x to the property %s "
-	    "owned by client #%d (wobj uid=%d, obj->uid-> %d, obj->pid = %d, obj->wm = %d)\n",
+    LOG("Property: Deny client #%d (pid = %d, uid = %d) access %#x to the property %s "
+	    "owned by client #%d (window client uid = %d, obj->uid = %d, obj->pid = %d, obj->wm = %d)\n",
 	rec->client->index,
 	subj->pid,
 	subj->uid,
 	rec->access_mode,
 	propName,
-	client->index,
-	wobj->uid,
+	wClient(rec->pWin)->index,
+	wo_priv->uid,
 	obj->uid,
 	obj->pid,
 	obj->wm);
 
-    DEBUG("Property: is_selection: %d\n", is_selection);
-    rec->status = is_selection ? BadMatch : BadAccess;
+    rec->status = BadAccess;
 }
 
 /* based on xorg-server Xext/security.c */
@@ -1387,9 +1325,6 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (!atom_name)
 	return;
 
-    if (is_matched(atom_name, (const char **) shared_sels_list))
-	return;
-
     if (strcmp(atom_name, "PRIMARY") != 0 &&
 	strcmp(atom_name, "CLIPBOARD") != 0)
 	goto passthru;
@@ -1438,43 +1373,9 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
-    DEBUG("Selection: passthrou\n");
-    /* Originally, the following code had polyinstallation for selections, but
-     * it made it more complex, so I dropped it for now. */
-    if (rec->access_mode & (DixGetAttrAccess | DixReadAccess)) {
-	LocalClientCredRec *creds;
-	if (GetLocalClientCreds(rec->client, &creds) || creds == NULL) {
-	    goto deny;
-	}
-
-	int recuid = creds->euid;
-	int recpid = creds->pid;
-	FreeLocalClientCreds(creds);
-
-	if (!pSel->client)
-	    return;
-
-	if (GetLocalClientCreds(pSel->client, &creds) || creds == NULL) {
-	    goto deny;
-	}
-
-	int seluid = creds->euid;
-	int selpid = creds->pid;
-	FreeLocalClientCreds(creds);
-
-	if ((!strict && (recuid != seluid))
-		|| (recpid != selpid)) {
-	    goto deny;
-	}
-    }
-
-    return;
-
-deny:
-    LOG("Selection: Deny selection %s access %#x request by client #%d\n",
-	    atom_name, rec->access_mode, rec->client->index);
-    rec->status = BadAccess;
-    return;
+    /* Relax non-clipboard selections for now. */
+    INFO("Selection: client #%d access %#x to selection %s\n",
+	    rec->client->index, rec->access_mode, atom_name);
 }
 
 void

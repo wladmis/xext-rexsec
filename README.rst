@@ -196,12 +196,6 @@ SharedProps      A colon-separated list of shared properties.            *None*
                  Check ``Xorg.${DISPLAY#:}.log`` if you really need to
                  add them.
 
-SharedSelections A colon-separated list of shared selections.            *None*
-
-                 The same as SharedProps, but for selections.
-                 Do not confuse this with primary selection and
-                 clipboard as altsec handles them separately.
-
 Strict           If false, a UID-based separation is used instead of     ``True``
                  client-based.
 
