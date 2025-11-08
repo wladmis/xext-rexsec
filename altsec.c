@@ -1365,7 +1365,7 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     } else {
 	rec->status = BadMatch;
 	LOG("Selection: Deny clipboard selection %s access %#x requested by client #%d: "
-	    "not in focus of more than 500 mls passed\n",
+	    "not in focus.\n",
 	    atom_name, rec->access_mode, rec->client->index);
     }
 
