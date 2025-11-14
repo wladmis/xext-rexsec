@@ -3,7 +3,7 @@ PKGCONF 	:= $(shell pkg-config --cflags xorg-server)
 XORGEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extenstions
 
 EXTRA_CFLAGS += $(PKGCONF)
-EXTRA_CFLAGS += -fPIC -std=gnu99
+EXTRA_CFLAGS += -fPIC -std=c99
 EXTRA_CFLAGS += -Wall -Werror -Wpedantic
 
 SOURCES := altsec.c Makefile README.rst

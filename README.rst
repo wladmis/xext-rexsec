@@ -120,9 +120,9 @@ make it trusted.
 BUILD AND INSTALL
 =================
 
-To build it you need to have a compiler that supported GNU99 extensions,
-GNU Make, xorg-server's and libXext's development files.  To build, run
-the following command:
+To build it you need to have a C99-compilant compiler (I'm sure you have
+one), GNU Make, xorg-server's and libXext's development files. To build,
+run the following command:
 
    $ make
 

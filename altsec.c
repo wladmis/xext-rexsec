@@ -8,6 +8,9 @@
 #include "version.h"
 
 #define X_REGISTRY_REQUEST
+#define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 500
+
 #include <xorg-server.h>
 #include <xf86.h>
 #include <xf86Module.h>
