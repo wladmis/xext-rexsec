@@ -67,14 +67,6 @@ char *wmcmdargs = NULL;
 
 pid_t selection_owner = -1;
 
-struct {
-    ClientPtr client;
-    int cid;
-    int uid;
-    pid_t pid;
-    TimeStamp ts;
-} lastFocused = { NULL, -1, -1, -1, {0, 0}};
-
 DevPrivateKeyRec asec_client_key_rec;
 #define asec_client_key (&asec_client_key_rec)
 typedef struct {
@@ -459,18 +451,6 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 }
 #endif /* __linux__ */
 
-#if 0
-static void
-clear_last_focused()
-{
-    lastFocused.client = NULL;
-    lastFocused.cid = -1;
-    lastFocused.uid = -1;
-    lastFocused.pid = -1;
-    lastFocused.ts = (TimeStamp) {0, 0};
-}
-#endif
-
 static void
 construct_trusted_clients_list(const char *str)
 {
@@ -668,52 +648,45 @@ enum {
 };
 
 /*
- * Check whether allow the client access to clipboard content.
+ * Get a client that at the moment has input focus.
+ *
+ * Return: focused client or NULL if none.
+ */
+ClientPtr
+get_focused_client()
+{
+    if (inputInfo.keyboard != NULL
+     && inputInfo.keyboard->focus != NULL
+     && inputInfo.keyboard->focus->win != NullWindow)
+	return wClient(inputInfo.keyboard->focus->win);
+    else
+	return NULL;
+}
+
+/*
+ * Check whether the client focused.
  *
  * client -- client to check.
- * is_selection -- 1 if selection.
- * timegap -- fail if last input interaction was earlier that timegap
- *         milliseconds or 0 to ignore it.
  *
  * Return value: 1 is success, 0 is fail.
  */
 static int
-checkClipboardAccess(ClientPtr client, int is_selection, unsigned int timegap)
+is_client_focused(ClientPtr client)
 {
     AClientPrivPtr pClientPriv;
-    TimeStamp ClipReq;
+    ClientPtr fkbd = NULL;
+    AClientPrivPtr fc;
 
     pClientPriv = dixLookupPrivate(&client->devPrivates, asec_client_key);
 
+    if ((fkbd = get_focused_client()) == NULL)
+	return 0;
+
+    fkbd = wClient(inputInfo.keyboard->focus->win);
+    fc = dixLookupPrivate(&fkbd->devPrivates, asec_client_key);
     /* If focused window does not belong to client requested the selection,
      * deny */
-    /* In case of a context menu the focused client can be a server client,
-     * it's OK to passthrou it because we are still checking the TSes. */
-    if (lastFocused.client == NULL
-	|| pClientPriv->pid != lastFocused.pid)
-	return 0;
-
-    if (is_selection) {
-	ClipReq = pClientPriv->lastInput;
-    } else {
-	/* Selection property is requested */
-	ClipReq = pClientPriv->selReqTS;
-    }
-
-   if (timegap == 0)
-       return 1;
-
-    UpdateCurrentTimeIf();
-
-    /* Update selReqTS */
-    if (is_selection)
-	pClientPriv->selReqTS = currentTime;
-
-    /* FIXME: ugly hack */
-    if (currentTime.months != ClipReq.months)
-	return 0;
-
-    if (currentTime.milliseconds - ClipReq.milliseconds >= timegap)
+    if (!are_equal_clients(fc, pClientPriv))
 	return 0;
 
     return 1;
@@ -824,6 +797,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		SpyClient.cid = 0;
 		SpyClient.on = 0;
 	    }
+
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
 
@@ -836,11 +810,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    LOG("!!! Window Manager exited, stop protecting X11 entities\n");
 		}
 	    }
-
-#if 0
-	    if (lastFocused.client == pci->client)
-		clear_last_focused();
-#endif
 
 	    break;
 
@@ -1249,23 +1218,6 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     obj = dixLookupPrivate(&(wClient(rec->pWin))->devPrivates, asec_client_key);
 
     for (int i = 0; i < rec->count; i++) {
-	if (rec->events[i].u.u.type == FocusIn
-		&& subj->no_input == 0
-		&& rec->client->index != wmcid
-		&& rec->client != serverClient) {
-
-	    UpdateCurrentTimeIf();
-
-	    lastFocused.client = rec->client;
-	    lastFocused.cid = rec->client->index;
-	    lastFocused.uid = subj->uid;
-	    lastFocused.pid = subj->pid;
-	    lastFocused.ts = currentTime;
-
-	    DEBUG("Receive: focus change: client #%d, uid=%d, pid=%d\n",
-		    lastFocused.cid, lastFocused.uid, lastFocused.pid);
-	}
-
 	if (are_equal_clients(subj, obj))
 	    continue;
 
@@ -1333,17 +1285,21 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	strcmp(atom_name, "CLIPBOARD") != 0)
 	goto passthru;
 
-    DEBUG("Selection: clipboard selection %s requested by client #%d, focused client is #%d, access_mode is %#x\n",
+    /* Don't care about the new content check */
+    if (rec->access_mode & DixPostAccess)
+        return;
+
+    DEBUG("Selection: clipboard selection %s requested by client #%d, access_mode is %#x\n",
 	    atom_name,
 	    rec->client->index,
-	    lastFocused.cid,
 	    rec->access_mode);
 
-    if (rec->access_mode & (DixCreateAccess|DixSetAttrAccess)) {
+    if (rec->access_mode & DixCreateAccess) {
 	obj->pid = subj->pid;
+
 	/* Only focused with recent input or trusted clients can own the real
 	 * selection, but let others own the faked one to not make them upset. */
-	if (checkClipboardAccess(rec->client, 1, 0)
+	if (is_client_focused(rec->client)
 		|| is_trusted_client(rec->client)
 		|| rec->client == serverClient) {
 	    DEBUG("Selection: Set selection_owner to %d\n", selection_owner);
@@ -1354,7 +1310,13 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	    obj->is_faked = 1;
 	}
     } else {
-	int is_permitted = checkClipboardAccess(rec->client, 1, 0);
+	int is_permitted;
+
+	if (is_trusted_client(rec->client))
+	    is_permitted = 1;
+	else
+	    is_permitted = is_client_focused(rec->client);
+
 	while (pSel->selection != name
 		|| (obj->is_faked && is_permitted)
 		|| (!is_permitted && subj->pid != obj->pid)) {
@@ -1424,14 +1386,16 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
     if (rec->event->u.u.detail != EQUAL_KC)
 	return;
 
-    AClientPrivPtr client_priv = dixLookupPrivate(&(lastFocused.client)->devPrivates, asec_client_key);
-    if (!client_priv || !client_priv->live)
+    ClientPtr fkbd;
+    if ((fkbd = get_focused_client()) == NULL)
 	return;
+
+    AClientPrivPtr client_priv = dixLookupPrivate(&fkbd->devPrivates, asec_client_key);
 
     if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask)) {
 	client_priv->spymode = 1;
 	SpyClient.on = 1;
-	SpyClient.cid = lastFocused.cid;
+	SpyClient.cid = fkbd->index;
 #if __linux__
 	SpyClient.ino = client_priv->ino;
 	SpyClient.major = client_priv->major;
@@ -1440,7 +1404,7 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
 	SpyClient.userns = client_priv->userns;
 	SpyClient.root_ino = client_priv->root_ino;
 #endif /* __linux__ */
-	INFO("SpyMode: client #%d is in spymode now\n", lastFocused.cid);
+	INFO("SpyMode: client #%d is in spymode now\n", SpyClient.cid);
     } else if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask|ShiftMask)
 	    && is_spyclient(client_priv)) {
 	client_priv->spymode = 0;
@@ -1454,7 +1418,7 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
 	}
 	SpyClient.cid = 0;
 #endif /* __linux__ */
-	INFO("SpyMode: client #%d is out of spymode now\n", lastFocused.cid);
+	INFO("SpyMode: client #%d is out of spymode now\n", fkbd->index);
     }
 }
 
