@@ -1,5 +1,5 @@
 GIT 		?= git
-PKGCONF 	:= $(shell pkg-config --cflags xorg-server)
+PKGCONF 	:= $(shell pkg-config --cflags xorg-server xproto)
 XORGEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extenstions
 
 EXTRA_CFLAGS += $(PKGCONF)
@@ -35,7 +35,7 @@ tarball: VERSION
 	@$(MAKE) xext-altsec-$(shell cat VERSION).tar.gz
 
 install: altsec.so
-	install -pD altsec.so $(DESTDIR)/$(XORGEXTDIR)/altsec.so
+	install -pD altsec.so $(DESTDIR)$(XORGEXTDIR)/altsec.so
 
 clean:
 	-rm -f altsec.o VERSION version.h
