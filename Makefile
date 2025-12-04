@@ -1,5 +1,5 @@
 GIT 		?= git
-PKGCONF 	:= $(shell pkg-config --cflags xorg-server)
+PKGCONF 	:= $(shell pkg-config --cflags xorg-server xproto)
 XORGEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extenstions
 
 EXTRA_CFLAGS += $(PKGCONF)
