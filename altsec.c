@@ -1042,6 +1042,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		    trusted_uid = subj->uid;
 		    subj->wm = 1;
 		    subj->is_trusted = 1;
+		    obj->wm = 1;
 		    wmpid = subj->pid;
 		    wmcid = rec->client->index;
 		    if (rec->client->clientIds->cmdname)
