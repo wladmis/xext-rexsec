@@ -43,4 +43,4 @@ clean:
 distclean: clean
 	-rm altsec.so
 
-.PHONY: all archive clean distclean install tarball
+.PHONY: all clean distclean install tarball
