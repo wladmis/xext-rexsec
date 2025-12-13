@@ -361,7 +361,10 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 	return 0;
 
     if (root_userns != NULL) {
-	snprintf(pid_path, sizeof(pid_path), "/proc/%d/ns/user", pid);
+	if ((len = snprintf(pid_path, sizeof(pid_path), "/proc/%d/ns/user", pid)) >= sizeof(pid_path)) {
+	    LOG("is_proc_client_trusted: pid_path \"%s...\" is longer (%d) than expected, please report bug\n", pid_path, len);
+	    return 0;
+	}
 	DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
 	if (realpath(pid_path, resolved_path) == NULL) {
 	    REALPATH_ERR;
@@ -430,6 +433,10 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 static int
 are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 {
+    if (c1->pid <= 0
+     || c2->pid <= 0)
+	return 0;
+
     if (c1->pid == c2->pid)
 	return 1;
 
@@ -730,12 +737,12 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		const char *client_cmdname = GetClientCmdName(pci->client);
 		const char *client_cmdargs = GetClientCmdArgs(pci->client);
 
-		if (creds->fieldsSet & LCC_PID_SET)
+		if (creds->fieldsSet & LCC_PID_SET) {
 		    pClientPriv->pid = creds->pid;
-
 #if __linux__
 		fill_client_stats(pClientPriv, pClientPriv->pid);
 #endif /* __linux__ */
+		}
 
 		if (creds->fieldsSet & LCC_UID_SET)
 		    pClientPriv->uid = creds->euid;
