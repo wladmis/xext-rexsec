@@ -7,6 +7,7 @@
 
 #include "version.h"
 
+#define unlikely(x) __builtin_expect(!!(x), 0)
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
 
@@ -345,8 +346,13 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 
     char pid_path[64];
     char resolved_path[PATH_MAX];
+    int len;
 
-    snprintf(pid_path, sizeof(pid_path), "/proc/%d/root", pid);
+    if (unlikely((len = snprintf(pid_path, sizeof(pid_path), "/proc/%d/root", pid)) >= sizeof(pid_path))) {
+	LOG("is_proc_client_trusted: pid_path \"%s...\" is longer (%d) than expected, please report bug\n", pid_path, len);
+	return 0;
+    }
+
     DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
 
     if (realpath(pid_path, resolved_path) == NULL) {
@@ -361,7 +367,7 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 	return 0;
 
     if (root_userns != NULL) {
-	if ((len = snprintf(pid_path, sizeof(pid_path), "/proc/%d/ns/user", pid)) >= sizeof(pid_path)) {
+	if (unlikely((len = snprintf(pid_path, sizeof(pid_path), "/proc/%d/ns/user", pid)) >= sizeof(pid_path))) {
 	    LOG("is_proc_client_trusted: pid_path \"%s...\" is longer (%d) than expected, please report bug\n", pid_path, len);
 	    return 0;
 	}
@@ -377,7 +383,11 @@ is_proc_client_trusted(const char *cmdname, pid_t pid)
 	    return 0;
     }
 
-    snprintf(pid_path, sizeof(pid_path), "/proc/%d/exe", pid);
+    if (unlikely((len = snprintf(pid_path, sizeof(pid_path), "/proc/%d/exe", pid)) >= sizeof(pid_path))) {
+	LOG("is_proc_client_trusted: pid_path \"%s...\" is longer (%d) than expected, please report bug\n", pid_path, len);
+	return 0;
+    }
+
     DEBUG("is_proc_client_trusted: pid_path == %s\n", pid_path);
     if (realpath(pid_path, resolved_path) == NULL) {
 	REALPATH_ERR;
@@ -399,10 +409,13 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 {
     char path[32]; /* 32 bytes should be enough for sizeof("/proc/%d/(exe|root|ns/user)") */
     struct stat sb;
+    int len;
 
     DEBUG("enter fill_client_stats\n");
 
-    snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+    if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/exe", pid)) >= sizeof(path)))
+	LOG("fill_client_stats: path \"%s...\" is longer (%d) than expected, please report bug\n", path, len);
+
     if (stat(path, &sb) != -1) {
 	client->major = major(sb.st_dev);
 	client->minor = minor(sb.st_dev);
@@ -411,7 +424,9 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 		client->major, client->minor, client->ino);
     }
 
-    snprintf(path, sizeof(path), "/proc/%d/root", pid);
+    if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/root", pid)) >= sizeof(path)))
+	LOG("fill_client_stats: path \"%s...\" is longer (%d) than expected, please report bug\n", path, len);
+
     if (stat(path, &sb) != -1) {
 	client->root_major = major(sb.st_dev);
 	client->root_minor = minor(sb.st_dev);
@@ -420,7 +435,9 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 		client->root_major, client->root_minor, client->root_ino);
     }
 
-    snprintf(path, sizeof(path), "/proc/%d/ns/user", pid);
+    if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/ns/user", pid)) >= sizeof(path)))
+	LOG("fill_client_stats: path \"%s...\" is longer (%d) than expected, please report bug\n", path, len);
+
     if (stat(path, &sb) != -1) {
 	client->userns = sb.st_ino;
 	DEBUG("fill_client_stats: userns == %lu\n", client->userns);
@@ -497,7 +514,13 @@ construct_trusted_clients_list(const char *str)
 	    if ((*path_iter)[len - 1] == '/')
 		len--;
 
-	    snprintf(path, sizeof(path), "%.*s/%s", len, *path_iter, *iter);
+	    int path_len;
+	    if (unlikely((path_len = snprintf(path, sizeof(path), "%.*s/%s", len, *path_iter, *iter) >= sizeof(path)))) {
+		LOG("construct_trusted_clients_list: path \"%s...\" is longer (%d) than expected, please report bug\n"
+		    "construct_trusted_clients_list: could not add %s to TrustedClients\n",
+		    path, path_len, *iter);
+		continue;
+	    }
 
 	    if (stat(path, &sb) < 0 || !(sb.st_mode & S_IFREG))
 		continue;
