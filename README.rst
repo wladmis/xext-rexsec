@@ -233,8 +233,6 @@ Here is an example of 90-altsec.conf file, which should reside in
         Load "altsec"
 
         SubSection "altsec"
-            # This makes system tray work if you need it
-            Option "SharedSelections" "_NET_SYSTEM_TRAY_S0"
             # A list of clients that should be considered trusted when
             # started after secured phase.
             Option "TrustedClients" "dmenu:xkill:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass"
