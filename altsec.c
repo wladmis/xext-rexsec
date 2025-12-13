@@ -77,12 +77,12 @@ typedef struct {
     int uid;
 #if __linux__
     /* the executable stats */
-    int major;
-    int minor;
+    unsigned int major;
+    unsigned int minor;
     ino_t ino;
     /* the (ch)root path stats */
-    int root_major;
-    int root_minor;
+    unsigned int root_major;
+    unsigned int root_minor;
     ino_t root_ino;
     /* namespace */
     ino_t userns;
@@ -402,18 +402,18 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
     snprintf(path, sizeof(path), "/proc/%d/exe", pid);
     if (stat(path, &sb) != -1) {
 	client->major = major(sb.st_dev);
-	client->minor = major(sb.st_dev);
+	client->minor = minor(sb.st_dev);
 	client->ino = sb.st_ino;
-	DEBUG("fill_client_stats: major == %d, minor == %d, ino == %lu\n",
+	DEBUG("fill_client_stats: major == %u, minor == %u, ino == %lu\n",
 		client->major, client->minor, client->ino);
     }
 
     snprintf(path, sizeof(path), "/proc/%d/root", pid);
     if (stat(path, &sb) != -1) {
 	client->root_major = major(sb.st_dev);
-	client->root_minor = major(sb.st_dev);
+	client->root_minor = minor(sb.st_dev);
 	client->root_ino = sb.st_ino;
-	DEBUG("fill_client_stats: root_major == %d, root_minor == %d, root_ino == %lu\n",
+	DEBUG("fill_client_stats: root_major == %u, root_minor == %u, root_ino == %lu\n",
 		client->root_major, client->root_minor, client->root_ino);
     }
 
