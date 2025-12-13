@@ -751,9 +751,9 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    /* If Strict option is enabled, and client is on the list
 		     * of trusted client, mark it as trusted. */
 		    if (strict
-			    && trusted_uid > 0
-			    && pClientPriv->uid == trusted_uid
-			    && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
+		     && trusted_uid > 0
+		     && pClientPriv->uid == trusted_uid
+		     && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
 			pClientPriv->is_trusted = 1;
 			INFO("client #%d: client is trusted\n", pci->client->index);
 		    }
@@ -766,8 +766,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		 * different APIs to deal with processes information */
 		if (wmpid != -1 && pClientPriv->pid == wmpid) {
 		    if (client_cmdname && client_cmdargs
-			    && strcmp(client_cmdname, wmcmdname) == 0
-			    && strcmp(client_cmdargs, wmcmdargs) == 0) {
+		     && strcmp(client_cmdname, wmcmdname) == 0
+		     && strcmp(client_cmdargs, wmcmdargs) == 0) {
 			pClientPriv->wm = 1;
 			pClientPriv->is_trusted = 1;
 
@@ -905,14 +905,14 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	    return;
 
 	if ((!strict && (subj->uid == obj->uid))
-		|| (subj->pid == obj->pid)
-		|| ((rec->access_mode | allowed) == allowed))
+	 || (subj->pid == obj->pid)
+	 || ((rec->access_mode | allowed) == allowed))
 	    return;
     }
 
     /* Allow some extensions requests */
     if (cid == 0
-	    && strcmp(SecurityLookupRequestName(rec->client), "RANDR:SelectInput") == 0)
+     && strcmp(SecurityLookupRequestName(rec->client), "RANDR:SelectInput") == 0)
 	return;
 
     LOG("Resource: deny client number #%d (uid=%d, pid=%d) "
@@ -934,8 +934,8 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
     if (is_trusted_client(rec->client)
-	    || (!strict && is_trusted_uid(subj->uid))
-	    || (rec->access_mode & (DixGetAttrAccess | DixGrabAccess)))
+     || (!strict && is_trusted_uid(subj->uid))
+     || (rec->access_mode & (DixGetAttrAccess | DixGrabAccess)))
 	return;
 
     /* extend me */
@@ -1042,10 +1042,10 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		    goto deny;
 	    } else { /* If not root window */
 		if (are_equal_clients(subj, wo_priv)
-			|| rec->client == serverClient
-			|| is_trusted_client(rec->client)
-			|| (!strict && (subj->uid == wo_priv->uid))
-			|| !is_matched(propName, AppWinProperties))
+		 || rec->client == serverClient
+		 || is_trusted_client(rec->client)
+		 || (!strict && (subj->uid == wo_priv->uid))
+		 || !is_matched(propName, AppWinProperties))
 		    /* allow */;
 		else
 		    goto deny;
@@ -1053,7 +1053,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
 	    /* Label newly created property. */
 	    if (subj->wm
-		    || rec->client == serverClient)
+	     || rec->client == serverClient)
 		obj->wm = 1;
 
 	    obj->pid = subj->pid;
@@ -1061,7 +1061,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	}
 
 	if (subj->pid == obj->pid
-		|| (!strict && (subj->uid == obj->uid)))
+	 || (!strict && (subj->uid == obj->uid)))
 	    goto allow_to_write;
 
 	if (is_trusted_client(rec->client))
@@ -1078,8 +1078,8 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 allow_to_write:
 	/* Do not consider a client focused if it set no input hint */
 	if (strcmp(propName, "WM_HINTS") == 0
-		&& pProp->size >= 5 /* should always be true, but just in case */
-		&& (((char *) pProp->data)[0] & (char) 1)) {
+	 && pProp->size >= 5 /* should always be true, but just in case */
+	 && (((char *) pProp->data)[0] & (char) 1)) {
 	    if (((char *) pProp->data)[4] == 0) {
 		DEBUG("WM_HINTS property client #%d will be unfocused\n", wClient(rec->pWin)->index);
 		wo_priv->no_input = 1;
@@ -1100,11 +1100,11 @@ allow_to_write:
 	    return;
 
 	if (wClient(rec->pWin)->index == 0
-		&& (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
+	 && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
 	    return;
 
 	if (subj->pid == obj->pid
-		|| (!strict && (subj->uid == obj->uid)))
+	 || (!strict && (subj->uid == obj->uid)))
 	    return;
 
 	if (is_trusted_client(rec->client))
@@ -1145,12 +1145,10 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 
     if (loglevel >= LL_TRACE)
 	for (int i = 0; i < rec->count; i++)
-	    if ((rec->dev == inputInfo.keyboard
-		    && rec->events[i].u.u.type != KeyPress
-		    && rec->events[i].u.u.type != KeyRelease)
-		|| (rec->dev == inputInfo.pointer
-		    && rec->events[i].u.u.type != ButtonPress
-		    && rec->events[i].u.u.type != ButtonRelease))
+	    if ((rec->dev == inputInfo.keyboard && rec->events[i].u.u.type != KeyPress
+						&& rec->events[i].u.u.type != KeyRelease)
+	     || (rec->dev == inputInfo.pointer && rec->events[i].u.u.type != ButtonPress
+					       && rec->events[i].u.u.type != ButtonRelease))
 		LOG("Send (trace): (client #%d or device '%s') is send ingevent %s to window, owned by client #%d\n",
 			rec->client ? rec->client->index : -1,
 			rec->dev ? rec->dev->name : "(none)",
@@ -1210,9 +1208,9 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     if (loglevel >= LL_TRACE)
 	for (int i = 0; i < rec->count; i++)
 	    if (rec->events[i].u.u.type != KeyPress
-		    && rec->events[i].u.u.type != KeyRelease
-		    && rec->events[i].u.u.type != ButtonPress
-		    && rec->events[i].u.u.type != ButtonRelease)
+	     && rec->events[i].u.u.type != KeyRelease
+	     && rec->events[i].u.u.type != ButtonPress
+	     && rec->events[i].u.u.type != ButtonRelease)
 		LOG("Receive (trace): client #%d is going to receive event %s\n",
 			rec->client->index,
 			LookupEventName(rec->events[i].u.u.type));
@@ -1234,11 +1232,11 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	    continue;
 
 	if ((!strict && (subj->uid == obj->uid))
-		|| subj->pid == obj->pid)
+	 || subj->pid == obj->pid)
 	    continue;
 
 	if (rec->events[i].u.u.type == PropertyNotify
-		|| rec->events[i].u.u.type == DestroyNotify) {
+	 || rec->events[i].u.u.type == DestroyNotify) {
 	    continue;
 	}
 
@@ -1303,8 +1301,8 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	/* Only focused with recent input or trusted clients can own the real
 	 * selection, but let others own the faked one to not make them upset. */
 	if (is_client_focused(rec->client)
-		|| is_trusted_client(rec->client)
-		|| rec->client == serverClient) {
+	 || is_trusted_client(rec->client)
+	 || rec->client == serverClient) {
 	    DEBUG("Selection: Set selection_owner to %d\n", selection_owner);
 	    selection_owner = subj->pid;
 	    obj->is_faked = 0;
@@ -1321,8 +1319,8 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	    is_permitted = is_client_focused(rec->client);
 
 	while (pSel->selection != name
-		|| (obj->is_faked && is_permitted)
-		|| (!is_permitted && subj->pid != obj->pid)) {
+	   || (obj->is_faked && is_permitted)
+	   || (!is_permitted && subj->pid != obj->pid)) {
 	    if ((pSel = pSel->next) == NULL)
 		break;
 	    obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
@@ -1366,8 +1364,8 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
     if ((!strict && (subj->uid == obj->uid))
-	    || are_equal_clients(subj, obj)
-	    || (rec->access_mode | allowed) == allowed)
+     || are_equal_clients(subj, obj)
+     || (rec->access_mode | allowed) == allowed)
 	return;
 
     rec->status = BadAccess;
