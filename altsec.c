@@ -9,7 +9,6 @@
 
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
-#define _XOPEN_SOURCE 500
 
 #include <xorg-server.h>
 #include <xf86.h>
@@ -28,7 +27,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#if __linux__
 #include <sys/sysmacros.h>
+#endif
 #include <errno.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -144,7 +145,7 @@ DixReceiveAccess | DixSendAccess | DixAddAccess | DixRemoveAccess;
 const Mask ALTSecClientMask = DixGetAttrAccess;
 
 static void altsecModuleInit(INITARGS);
-void altsecExtensionInit();
+void altsecExtensionInit(void);
 
 static MODULESETUPPROTO(altsecSetup);
 
@@ -424,6 +425,7 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 
     DEBUG("leave fill_client_stats\n");
 }
+#endif /* __linux__ */
 
 static int
 are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
@@ -431,6 +433,7 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
     if (c1->pid == c2->pid)
 	return 1;
 
+#if __linux__
     /* In case we don't have stats */
     if (c1->ino == 0 || c2->ino == 0
      || c1->root_ino == 0 || c2->root_ino == 0
@@ -446,10 +449,10 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
      && c1->root_major == c2->root_major
      && c1->root_minor == c2->root_minor)
 	return 1;
+#endif /* __linux__ */
 
     return 0;
 }
-#endif /* __linux__ */
 
 static void
 construct_trusted_clients_list(const char *str)
@@ -653,7 +656,7 @@ enum {
  * Return: focused client or NULL if none.
  */
 ClientPtr
-get_focused_client()
+get_focused_client(void)
 {
     if (inputInfo.keyboard != NULL
      && inputInfo.keyboard->focus != NULL
@@ -1423,7 +1426,7 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
 }
 
 void
-altsecExtensionInit()
+altsecExtensionInit(void)
 {
     if (AddCallback(&ClientStateCallback, ALTSecClientState, NULL) != TRUE)
 	FatalError("ALTSecurity: could not register client state callback\n");
