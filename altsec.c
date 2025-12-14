@@ -199,7 +199,7 @@ static char **
 make_str_list(const char *str)
 {
     char *dstr;
-    char *elem, **lst, **tmp;
+    char *elem, *saveptr, **lst, **tmp;
     size_t num, size;
 
     if (!str)
@@ -207,7 +207,7 @@ make_str_list(const char *str)
 
     dstr = strdup(str);
 
-    elem = strtok(dstr, ":");
+    elem = strtok_r(dstr, ":", &saveptr);
 
     if (!elem) {
 	free(dstr);
@@ -232,7 +232,7 @@ make_str_list(const char *str)
 
 	    lst = tmp;
 	}
-    } while ((elem = strtok(NULL, ":")) != NULL);
+    } while ((elem = strtok_r(NULL, ":", &saveptr)) != NULL);
 
     lst[num] = NULL;
 
