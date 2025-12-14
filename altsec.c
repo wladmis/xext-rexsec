@@ -223,7 +223,7 @@ make_str_list(const char *str)
 
 	if (num == size) {
 	    size *= 2;
-	    tmp = realloc(lst, size * sizeof(*lst));
+	    tmp = reallocarray(lst, size, sizeof(*lst));
 
 	    if (!tmp) {
 		free(lst);
@@ -236,7 +236,7 @@ make_str_list(const char *str)
 
     lst[num] = NULL;
 
-    tmp = realloc(lst, (num + 1) * sizeof(*lst));
+    tmp = reallocarray(lst, (num + 1), sizeof(*lst));
 
     if (!tmp) {
 	free(lst);
@@ -590,7 +590,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     if (opt_exts != NULL) {
 	int ext_str_len = strlen(allowed_ext) + strlen(opt_exts) + 1;
 	/* I don't care about saving the pointer here, we will exit in case of fail anyway. */
-	if ((ext_str = realloc(ext_str, ext_str_len * sizeof(char))) == NULL)
+	if ((ext_str = reallocarray(ext_str, ext_str_len, sizeof(char))) == NULL)
 	    FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
 	strcat(ext_str, opt_exts);
     }
