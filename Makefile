@@ -39,7 +39,7 @@ tarball: VERSION
 	@$(MAKE) xext-rexsec-$(shell cat VERSION).tar.gz
 
 install: rexsec.so
-	install -pD rexsec.so $(DESTDIR)$(XORGEXTDIR)/rexsec.so
+	install -m644 -pD rexsec.so $(DESTDIR)$(XORGEXTDIR)/rexsec.so
 
 clean:
 	-rm -f rexsec.o VERSION version.h
