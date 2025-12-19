@@ -751,10 +751,14 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    pClientPriv->createTime = currentTime;
 
 	    /* All clients started before WM are considered trusted */
-	    if (wmpid == -1)
+	    if (wmpid == -1) {
 		pClientPriv->is_trusted = 1;
-	    else
+		INFO("client #%d: "
+		     "client is trusted as it was started in the insecure mode\n",
+		     pci->client->index);
+	    } else {
 		pClientPriv->is_trusted = 0;
+	    }
 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
@@ -1063,6 +1067,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
 		    INFO("Client #%d with pid %d is a window manager\n",
 			    rec->client->index, rec->client->clientIds->pid);
+		    INFO("Transition to the secure mode\n");
 		}
 
 		/* According to Application Window Properties specification:
