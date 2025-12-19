@@ -1005,6 +1005,11 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	NULL
     };
 
+    static const char *AllowedToReadProps[] = {
+	"_XSETTINGS_SETTINGS", /* https://specifications.freedesktop.org/xsettings/ */
+	NULL
+    };
+
     XacePropertyAccessRec *rec = calldata;
 
     if (rec->access_mode & DixPostAccess)
@@ -1021,6 +1026,10 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	    wClient(rec->pWin)->index);
 
     if (is_matched(propName, (const char **) shared_props_list))
+	return;
+
+    if (is_matched(propName, AllowedToReadProps)
+     && (rec->access_mode == DixReadAccess))
 	return;
 
     AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
