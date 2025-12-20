@@ -802,7 +802,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			INFO("Initialized client #%d by Window Manager\n",
 				pci->client->index);
 		    } else {
-			INFO("pid %d is no longer owned by"
+			INFO("pid %d is no longer owned by "
 			    "the Window Manager process\n",
 				wmpid);
 
