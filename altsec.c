@@ -75,6 +75,7 @@ typedef struct {
     int live;
     int spymode;
     pid_t pid;
+    int cid;
     int uid;
 #if __linux__
     /* the executable stats */
@@ -90,9 +91,7 @@ typedef struct {
 #endif /* __linux__ */
     int wm; /* True if the client is a window manager process */
     int is_trusted;
-    TimeStamp lastInput;
-    TimeStamp selReqTS;
-    TimeStamp createTime;
+    TimeStamp ts;
     int no_input;
 } AClientPrivRec, *AClientPrivPtr;
 
@@ -103,9 +102,7 @@ typedef struct {
     pid_t pid;
     /* The value of a global property can be read by any client.
      * All properties in the trusted mode or by Window Manager are global. */
-    int poly; /* property is polyinstalled */
     int wm; /* property is handled by window manager */
-    int is_faked;
 } APropPrivRec, *APropPrivPtr;
 
 DevPrivateKeyRec asec_window_key_rec;
@@ -119,8 +116,8 @@ DevPrivateKeyRec asec_sel_key_rec;
 #define asec_sel_key (&asec_sel_key_rec)
 typedef struct {
     pid_t pid;
+    int cid;
     TimeStamp ts;
-    int poly;
     int is_faked;
 } ASelPrivRec, *ASelPrivPtr;
 
@@ -739,16 +736,13 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    pClientPriv->live = 1;
 	    pClientPriv->wm = 0;
 	    pClientPriv->pid = (pid_t) 0;
+	    pClientPriv->cid = pci->client->index;
 	    pClientPriv->uid = -1;
-	    pClientPriv->lastInput.months = 0;
-	    pClientPriv->lastInput.milliseconds = 0;
-	    pClientPriv->selReqTS.months = 0;
-	    pClientPriv->selReqTS.milliseconds = 0;
 	    pClientPriv->no_input = 0;
 
 	    UpdateCurrentTimeIf();
 
-	    pClientPriv->createTime = currentTime;
+	    pClientPriv->ts = currentTime;
 
 	    /* All clients started before WM are considered trusted */
 	    if (wmpid == -1) {
@@ -1386,9 +1380,34 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
-    /* Relax non-clipboard selections for now. */
-    INFO("Selection: client #%d access %#x to selection %s\n",
-	    rec->client->index, rec->access_mode, atom_name);
+    /* Mark newly created selection. */
+    if (rec->access_mode & DixCreateAccess) {
+	obj->pid = subj->pid;
+	obj->cid = subj->cid;
+	obj->ts = subj->ts;
+    }
+
+    /* Allow read access to any client. */
+    if ((rec->access_mode & ~(DixReadAccess|DixGetAttrAccess)) == 0)
+	return;
+
+    if (is_trusted_client(rec->client))
+	return;
+
+    AClientPrivPtr owner;
+    if (clients[obj->cid] != NULL) {
+	owner = dixLookupPrivate(&clients[obj->cid]->devPrivates, asec_client_key);
+	/* If cids are equal, but tses are different, that means that the
+	 * clients are different. */
+	if ((owner->cid != obj->cid || (owner->ts.months == obj->ts.months
+				     && owner->ts.milliseconds == obj->ts.milliseconds))
+	 && are_equal_clients(owner, subj))
+	    return;
+    }
+
+    rec->status = BadMatch;
+    LOG("Selection: Deny selection %s owned by client #%d access %#x requested by client #%d\n",
+	atom_name, obj->cid, rec->access_mode, rec->client->index);
 }
 
 void
