@@ -1010,6 +1010,8 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     };
 
     static const char *AllowedToReadProps[] = {
+	"RESOURCE_MANAGER", /* https://www.x.org/releases/current/doc/man/man3/XResourceManagerString.3.xhtml */
+	"SCREEN_RESOURCES",
 	"_XSETTINGS_SETTINGS", /* https://specifications.freedesktop.org/xsettings/ */
 	NULL
     };
