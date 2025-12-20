@@ -235,7 +235,7 @@ Here is an example of 90-altsec.conf file, which should reside in
         SubSection "altsec"
             # A list of clients that should be considered trusted when
             # started after secured phase.
-            Option "TrustedClients" "dmenu:xkill:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass:/usr/libexec/gsd-xsettings"
+            Option "TrustedClients" "dmenu:xkill:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass:/usr/libexec/gsd-power:/usr/libexec/gsd-xsettings"
             # Increase log level
             Option "LogLevel" "1"
         EndSubSection
