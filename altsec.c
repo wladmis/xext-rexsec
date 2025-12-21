@@ -77,6 +77,7 @@ typedef struct {
     pid_t pid;
     int cid;
     int uid;
+    char cmdname[64];
 #if __linux__
     /* the executable stats */
     unsigned int major;
@@ -739,6 +740,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    pClientPriv->cid = pci->client->index;
 	    pClientPriv->uid = -1;
 	    pClientPriv->no_input = 0;
+	    memset(pClientPriv->cmdname, 0, sizeof(pClientPriv->cmdname));
 
 	    UpdateCurrentTimeIf();
 
@@ -757,6 +759,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
 		const char *client_cmdargs = GetClientCmdArgs(pci->client);
+		strncpy(pClientPriv->cmdname, client_cmdname,
+			strnlen(client_cmdname, sizeof(pClientPriv->cmdname) - 1));
 
 		if (creds->fieldsSet & LCC_PID_SET) {
 		    pClientPriv->pid = creds->pid;
@@ -769,8 +773,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    pClientPriv->uid = creds->euid;
 
 		INFO("REGISTER client #%d initialized by %s (pid=%d, uid=%d)\n",
-			pci->client->index,
-			client_cmdname,
+			pClientPriv->cid,
+			pClientPriv->cmdname,
 			pClientPriv->pid,
 			pClientPriv->uid
 		   );
@@ -782,7 +786,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		 && pClientPriv->uid == trusted_uid
 		 && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
 		    pClientPriv->is_trusted = 1;
-		    INFO("client #%d: client is trusted\n", pci->client->index);
+		    INFO("client #%d (%s): client is trusted\n",
+			  pClientPriv->cid, pClientPriv->cmdname);
 		}
 
 		/* If client is owned by Window Manager mark it*/
@@ -796,8 +801,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			pClientPriv->wm = 1;
 			pClientPriv->is_trusted = 1;
 
-			INFO("Initialized client #%d by Window Manager\n",
-				pci->client->index);
+			INFO("Initialized client #%d (%s) by Window Manager\n",
+			      pClientPriv->cid, pClientPriv->cmdname);
 		    } else {
 			INFO("pid %d is no longer owned by "
 			    "the Window Manager process\n",
@@ -861,8 +866,8 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (is_matched(rec->ext->name, (const char **) add_ext_list))
 	return;
 
-    LOG("Extension: Deny client #%d uid %d access %#x to extension %s\n",
-	    rec->client->index, subj->uid, rec->access_mode, rec->ext->name);
+    LOG("Extension: Deny client #%d (%s) uid %d access %#x to extension %s\n",
+	 rec->client->index, subj->cmdname, subj->uid, rec->access_mode, rec->ext->name);
     rec->status = BadAccess;
 }
 
@@ -940,14 +945,14 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
      && strcmp(SecurityLookupRequestName(rec->client), "RANDR:SelectInput") == 0)
 	return;
 
-    LOG("Resource: deny client number #%d (uid=%d, pid=%d) "
+    LOG("Resource: deny client number #%d (cmdname=%s, uid=%d, pid=%d) "
 	"access mode 0x%lx to resource 0x%lx "
 	"resource type 0x%lx "
-	"of client #%d (uid=%d, pid=%d), on request %s\n",
-	rec->client->index, subj->uid, subj->pid,
+	"of client #%d (cmdname=%s, uid=%d, pid=%d), on request %s\n",
+	rec->client->index, subj->cmdname, subj->uid, subj->pid,
 	(unsigned long)rec->access_mode, (unsigned long)rec->id,
 	(unsigned long)rec->rtype,
-	cid, obj->uid, obj->pid, SecurityLookupRequestName(rec->client));
+	cid, obj->cmdname, obj->uid, obj->pid, SecurityLookupRequestName(rec->client));
 
     rec->status = BadAccess;
 }
@@ -964,8 +969,8 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	return;
 
     /* extend me */
-    LOG("ServerAccess: server management is restricted for client #%d (uid=%d, pid=%d)\n",
-	rec->client->index, subj->uid, subj->pid);
+    LOG("ServerAccess: server management is restricted for client #%d (cmdname=%s, uid=%d, pid=%d)\n",
+	rec->client->index, subj->cmdname, subj->uid, subj->pid);
     rec->status = BadAccess;
 }
 
@@ -1156,9 +1161,10 @@ allow_to_write:
     return;
 
 deny:
-    LOG("Property: Deny client #%d (pid = %d, uid = %d) access %#x to the property %s "
+    LOG("Property: Deny client #%d (cmdname = %s, pid = %d, uid = %d) access %#x to the property %s "
 	    "owned by client #%d (window client uid = %d, obj->uid = %d, obj->pid = %d, obj->wm = %d)\n",
 	rec->client->index,
+	subj->cmdname,
 	subj->pid,
 	subj->uid,
 	rec->access_mode,
@@ -1219,10 +1225,10 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	     || evtype == DestroyNotify) {
 		continue;
 	    } else {
-		LOG("Send: deny client #%d (uid=%d, pid=%d) "
+		LOG("Send: deny client #%d (cmdname = %s, uid=%d, pid=%d) "
 		    "from sending event of type %s to window 0x%lx of "
 		    "client #%d (uid=%d, pid=%d)\n",
-			rec->client->index, subj->uid, subj->pid,
+			rec->client->index, subj->cmdname, subj->uid, subj->pid,
 			LookupEventName(evtype),
 			(unsigned long)rec->pWin->drawable.id,
 			wClient(rec->pWin)->index, obj->uid, obj->pid);
@@ -1285,11 +1291,13 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     return;
 
 deny:
-    LOG("Receive: deny client #%d to receive message %s (%d) sent to window belonged to client #%d\n",
+    LOG("Receive: deny client #%d (%s) to receive message %s (%d) sent to window belonged to client #%d (%s)\n",
 	    rec->client->index,
+	    subj->cmdname,
 	    LookupEventName(event),
 	    event,
-	    wClient(rec->pWin)->index);
+	    wClient(rec->pWin)->index,
+	    subj->cmdname);
     rec->status = BadAccess;
 }
 
@@ -1368,9 +1376,9 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	*rec->ppSel = pSel;
     } else {
 	rec->status = BadMatch;
-	LOG("Selection: Deny clipboard selection %s access %#x requested by client #%d: "
+	LOG("Selection: Deny clipboard selection %s access %#x requested by client #%d (%s): "
 	    "not in focus.\n",
-	    atom_name, rec->access_mode, rec->client->index);
+	    atom_name, rec->access_mode, rec->client->index, subj->cmdname);
     }
 
     /* Exit clipboard selection handling. */
@@ -1403,8 +1411,8 @@ passthru:
     }
 
     rec->status = BadMatch;
-    LOG("Selection: Deny selection %s owned by client #%d access %#x requested by client #%d\n",
-	atom_name, obj->cid, rec->access_mode, rec->client->index);
+    LOG("Selection: Deny selection %s owned by client #%d access %#x requested by client #%d (%s)\n",
+	atom_name, obj->cid, rec->access_mode, rec->client->index, subj->cmdname);
 }
 
 void
