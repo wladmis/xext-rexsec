@@ -829,6 +829,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		SpyClient.on = 0;
 	    }
 
+	    INFO("DEREGISTER client #%d (%s)\n", pClientPriv->cid, pClientPriv->cmdname);
+
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
 
