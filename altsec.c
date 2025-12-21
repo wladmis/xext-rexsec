@@ -768,25 +768,22 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		if (creds->fieldsSet & LCC_UID_SET)
 		    pClientPriv->uid = creds->euid;
 
-		if (client_cmdname) {
-		    INFO("REGISTER client #%d initialized by %s (pid=%d, uid=%d)\n",
-			    pci->client->index,
-			    client_cmdname,
-			    pClientPriv->pid,
-			    pClientPriv->uid
-		       );
+		INFO("REGISTER client #%d initialized by %s (pid=%d, uid=%d)\n",
+			pci->client->index,
+			client_cmdname,
+			pClientPriv->pid,
+			pClientPriv->uid
+		   );
 
-		    /* If Strict option is enabled, and client is on the list
-		     * of trusted client, mark it as trusted. */
-		    if (strict
-		     && trusted_uid > 0
-		     && pClientPriv->uid == trusted_uid
-		     && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
-			pClientPriv->is_trusted = 1;
-			INFO("client #%d: client is trusted\n", pci->client->index);
-		    }
+		/* If Strict option is enabled, and client is on the list
+		 * of trusted client, mark it as trusted. */
+		if (strict
+		 && trusted_uid > 0
+		 && pClientPriv->uid == trusted_uid
+		 && is_proc_client_trusted(client_cmdname, pClientPriv->pid)) {
+		    pClientPriv->is_trusted = 1;
+		    INFO("client #%d: client is trusted\n", pci->client->index);
 		}
-
 
 		/* If client is owned by Window Manager mark it*/
 		/* FIXME: We should check somehow that it is still a Window
