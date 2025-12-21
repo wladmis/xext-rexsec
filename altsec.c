@@ -93,7 +93,6 @@ typedef struct {
     int wm; /* True if the client is a window manager process */
     int is_trusted;
     TimeStamp ts;
-    int no_input;
 } AClientPrivRec, *AClientPrivPtr;
 
 DevPrivateKeyRec asec_prop_key_rec;
@@ -739,7 +738,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    pClientPriv->pid = (pid_t) 0;
 	    pClientPriv->cid = pci->client->index;
 	    pClientPriv->uid = -1;
-	    pClientPriv->no_input = 0;
 	    memset(pClientPriv->cmdname, 0, sizeof(pClientPriv->cmdname));
 
 	    UpdateCurrentTimeIf();
@@ -1104,32 +1102,18 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
 	if (subj->pid == obj->pid
 	 || (!strict && (subj->uid == obj->uid)))
-	    goto allow_to_write;
+	    return;
 
 	if (is_trusted_client(rec->client))
-	    goto allow_to_write;
+	    return;
 
 	if (are_equal_clients(subj, wo_priv))
-	    goto allow_to_write;
+	    return;
 
 	if (rec->client == serverClient)
-	    goto allow_to_write;
+	    return;
 
 	goto deny;
-
-allow_to_write:
-	/* Do not consider a client focused if it set no input hint */
-	if (strcmp(propName, "WM_HINTS") == 0
-	 && pProp->size >= 5 /* should always be true, but just in case */
-	 && (((char *) pProp->data)[0] & (char) 1)) {
-	    if (((char *) pProp->data)[4] == 0) {
-		DEBUG("WM_HINTS property client #%d will be unfocused\n", wClient(rec->pWin)->index);
-		wo_priv->no_input = 1;
-	    } else {
-		DEBUG("WM_HINTS property client #%d will be focused\n", wClient(rec->pWin)->index);
-		wo_priv->no_input = 0;
-	    }
-	}
     } else {
 	/* Property set by WM is allowed to read by any client */
 	if (rec->access_mode & (DixReadAccess|DixGetAttrAccess)) {
