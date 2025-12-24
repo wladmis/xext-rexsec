@@ -77,7 +77,7 @@ typedef struct {
     pid_t pid;
     int cid;
     int uid;
-    char cmdname[64];
+    char *cmdname;
 #if __linux__
     /* the executable stats */
     unsigned int major;
@@ -738,7 +738,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    pClientPriv->pid = (pid_t) 0;
 	    pClientPriv->cid = pci->client->index;
 	    pClientPriv->uid = -1;
-	    memset(pClientPriv->cmdname, 0, sizeof(pClientPriv->cmdname));
+	    pClientPriv->cmdname = NULL;
 
 	    UpdateCurrentTimeIf();
 
@@ -757,8 +757,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
 		const char *client_cmdargs = GetClientCmdArgs(pci->client);
-		strncpy(pClientPriv->cmdname, client_cmdname,
-			strnlen(client_cmdname, sizeof(pClientPriv->cmdname) - 1));
+		pClientPriv->cmdname = strdup(client_cmdname);
 
 		if (creds->fieldsSet & LCC_PID_SET) {
 		    pClientPriv->pid = creds->pid;
@@ -830,6 +829,10 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    }
 
 	    INFO("DEREGISTER client #%d (%s)\n", pClientPriv->cid, pClientPriv->cmdname);
+	    if (pClientPriv->cmdname) {
+		free(pClientPriv->cmdname);
+		pClientPriv->cmdname = NULL;
+	    }
 
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
@@ -1277,13 +1280,12 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     return;
 
 deny:
-    LOG("Receive: deny client #%d (%s) to receive message %s (%d) sent to window belonged to client #%d (%s)\n",
+    LOG("Receive: deny client #%d (%s) to receive message %s (%d) sent to window belonged to client #%d\n",
 	    rec->client->index,
 	    subj->cmdname,
 	    LookupEventName(event),
 	    event,
-	    wClient(rec->pWin)->index,
-	    subj->cmdname);
+	    wClient(rec->pWin)->index);
     rec->status = BadAccess;
 }
 
