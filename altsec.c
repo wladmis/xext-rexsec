@@ -702,7 +702,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	root_userns = st.st_ino;
 	DEBUG("altsecSetup: root namespace value is %lu\n", root_userns);
     } else {
-	DEBUG("altsecSetup: could not obtain a value of root namespace: %s\n",
+	LOG("altsecSetup: could not obtain a value of root namespace: %s\n",
 		strerror(errno));
     }
 
@@ -714,7 +714,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	      "rootdir inode value is %lu (%u,%u)\n",
 		rootdir, rootdir_major, rootdir_minor);
     } else {
-	DEBUG("altsecSetup: could not obtain values of rootdir: %s\n",
+	LOG("altsecSetup: could not obtain values of rootdir: %s\n",
 		strerror(errno));
     }
 #endif /* __linux__ */
