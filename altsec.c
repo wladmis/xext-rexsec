@@ -419,6 +419,11 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 	client->ino = sb.st_ino;
 	DEBUG("fill_client_stats: major == %u, minor == %u, ino == %lu\n",
 		client->major, client->minor, client->ino);
+    } else {
+	LOG("fill_client_stats: could not derefer /proc/%d/exe: %s\n", pid, strerror(errno));
+	client->major = 0;
+	client->minor = 0;
+	client->ino = 0;
     }
 
     if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/root", pid)) >= sizeof(path)))
@@ -430,6 +435,11 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 	client->root_ino = sb.st_ino;
 	DEBUG("fill_client_stats: root_major == %u, root_minor == %u, root_ino == %lu\n",
 		client->root_major, client->root_minor, client->root_ino);
+    } else {
+	LOG("fill_client_stats: could not derefer /proc/%d/root: %s\n", pid, strerror(errno));
+	client->root_major = 0;
+	client->root_minor = 0;
+	client->root_ino = 0;
     }
 
     if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/ns/user", pid)) >= sizeof(path)))
@@ -438,6 +448,9 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
     if (stat(path, &sb) != -1) {
 	client->userns = sb.st_ino;
 	DEBUG("fill_client_stats: userns == %lu\n", client->userns);
+    } else {
+	LOG("fill_client_stats: could not derefer /proc/%d/ns/user: %s\n", pid, strerror(errno));
+	client->userns = 0;
     }
 
     DEBUG("leave fill_client_stats\n");
