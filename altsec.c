@@ -367,12 +367,18 @@ is_proc_client_trusted(AClientPrivPtr client)
     /* Chrooted clients are not trusted. */
     if (rootdir != client->root_ino
      || rootdir_major != client->root_major
-     || rootdir_minor != client->root_minor)
+     || rootdir_minor != client->root_minor) {
+	DEBUG("is_proc_client_trusted: client #%d (%s) is chrooted\n",
+		client->cid, client->cmdname);
 	return 0;
+    }
 
     /* Sandboxed clients are not trusted. */
-    if (root_userns != client->userns)
+    if (root_userns != client->userns) {
+	DEBUG("is_proc_client_trusted: client #%d (%s) is sandboxed\n",
+		client->cid, client->cmdname);
 	return 0;
+    }
 
     if (suid_is_trusted && client->is_suid)
 	return 1;
@@ -382,6 +388,11 @@ is_proc_client_trusted(AClientPrivPtr client)
 
     /* Check against trusted clients list. */
     for (asec_inode **tc = trusted_clients_list; *tc; tc++) {
+	DEBUG("is_proc_client_trusted: compare client #%d (%s) inodes (%lu vs %lu) and devices ((%u,%u) vs (%u,%u)\n",
+		client->cid, client->cmdname,
+		client->ino, (*tc)->ino,
+		client->major, client->minor,
+		(*tc)->major, (*tc)->minor);
 	if (client->ino == (*tc)->ino
 	 && client->minor == (*tc)->minor
 	 && client->major == (*tc)->major)
