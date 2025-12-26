@@ -797,7 +797,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
 		const char *client_cmdargs = GetClientCmdArgs(pci->client);
-		pClientPriv->cmdname = strdup(client_cmdname);
+		pClientPriv->cmdname = strndup(client_cmdname, 64);
 
 		if (creds->fieldsSet & LCC_PID_SET) {
 		    pClientPriv->pid = creds->pid;
