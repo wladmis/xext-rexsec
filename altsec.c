@@ -460,6 +460,11 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 static int
 are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 {
+    if (c1->cid == c2->cid
+     && c1->ts.months == c2->ts.months
+     && c1->ts.milliseconds == c2->ts.milliseconds)
+	return 1;
+
     if (c1->pid <= 0
      || c2->pid <= 0)
 	return 0;
