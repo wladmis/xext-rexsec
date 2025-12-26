@@ -347,9 +347,6 @@ is_trusted_client(ClientPtr client)
 
     subj = dixLookupPrivate(&client->devPrivates, asec_client_key);
 
-    if (!strict && is_trusted_uid(subj->uid))
-	return 1;
-
     return subj->is_trusted;
 }
 
@@ -379,7 +376,12 @@ is_proc_client_trusted(AClientPrivPtr client)
 		client->cid, client->cmdname);
 	return 0;
     }
+#endif /* __linux__ */
 
+    if (!strict && is_trusted_uid(client->uid))
+	return 1;
+
+#if __linux__
     if (suid_is_trusted && client->is_suid)
 	return 1;
 
@@ -924,9 +926,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    }
 		}
 
-		if (!strict && (creds->euid == trusted_uid))
-		    pClientPriv->is_trusted = 1;
-
 		FreeLocalClientCreds(creds);
 	    }
 
@@ -1012,9 +1011,6 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if (is_spyclient(subj) && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
 	return;
 
-    if (!strict && is_trusted_uid(subj->uid))
-	return;
-
     if (rec->rtype == RT_WINDOW)
 	allowed |= ALTSecSecurityWindowExtraMask;
 
@@ -1079,7 +1075,6 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
 
     if (is_trusted_client(rec->client)
-     || (!strict && is_trusted_uid(subj->uid))
      || (rec->access_mode & (DixGetAttrAccess | DixGrabAccess)))
 	return;
 
@@ -1527,9 +1522,6 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
     AClientPrivPtr subj, obj;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
-
-    if (!strict && is_trusted_uid(subj->uid))
-	return;
 
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
