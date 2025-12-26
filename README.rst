@@ -305,23 +305,21 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
                  namespace, i.e. confined via Flatpak, or firejail, etc.
 
                  You can provide a fullpath to an executable or a
-                 relative path (Linux-only), resided in the ``$PATH`` of
-                 ``X`` server process.
+                 relative path, resided in the ``$PATH`` of ``X`` server
+                 process.
 
                  On Linux, every relative executable pathname provided
                  in the list is looked up in ``$PATH`` of ``X`` server
                  process, so that it can't be abused by creating a
-                 malicious program with the same name. On Linux, every
-                 symlink is also dereferenced when reading the
-                 configuration and before matching.  On Linux system, if
-                 an executable does not start with a *slash symbol*
-                 ``/``, then altsec looks up it in the ``X`` server
-                 process ``$PATH``. If it does not reside in the
-                 ``$PATH``, you should provide a full pathname to the
-                 executable.
+                 malicious program with the same name. Every symlink is
+                 also dereferenced when reading the configuration and
+                 before matching.  If an executable does not start with
+                 a *slash symbol* ``/``, then altsec looks up it in the
+                 ``X`` server process ``$PATH``. If it does not reside
+                 in the ``$PATH``, you should provide a full pathname to
+                 the executable.
 
-                 On non-Linux systems you should provide only full
-                 pathname to the executable, any others will be ignored.
+                 Linux-only for now.
 
 SpyMode          When enabled, allow to temporarily grant a client an   ``False``
                  ability to read other clients properties (but not to
