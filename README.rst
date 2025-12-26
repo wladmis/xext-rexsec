@@ -321,7 +321,17 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
 
                  Linux-only for now.
 
-SpyMode          When enabled, allow to temporarily grant a client an   ``False``
+TrustSUID        Treat set-uid processes as trusted. Disable it if you   ``True``
+                 do not want such behavior, but for now there is no
+                 other way to make set-uid application trusted.
+
+                 Linux-only.
+
+TrustSGID        The same as TrustSGID, but for set-gid application.     ``True``
+
+                 Linux-only.
+
+SpyMode          When enabled, allow to temporarily grant a client an    ``False``
                  ability to read other clients properties (but not to
                  change them) via following keypress combination:
                  ``Control-Alt-Equal (=)``. To revoke the ability, use

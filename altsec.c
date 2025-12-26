@@ -59,6 +59,8 @@ ino_t root_userns = 0;
 ino_t rootdir = 0;
 unsigned int rootdir_major = 0;
 unsigned int rootdir_minor = 0;
+int suid_is_trusted = 1;
+int sgid_is_trusted = 1;
 #endif /* __linux__ */
 
 /* A Window Manager is trusted client that by altsec design is allowed
@@ -80,6 +82,8 @@ typedef struct {
     pid_t pid;
     int cid;
     int uid;
+    int is_suid;
+    int is_sgid;
     char *cmdname; /* just for info, do not repy on it: can be faked */
 #if __linux__
     /* the executable stats */
@@ -187,6 +191,8 @@ typedef enum {
     OPTION_SHARED_PROPS,
     OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
+    OPTION_TRUSTSGID,
+    OPTION_TRUSTSUID,
     OPTION_SPYMODE,
     THE_END_OF_OPTIONS
 } ALTSecOpts;
@@ -199,6 +205,8 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
 #if __linux__
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
+    {OPTION_TRUSTSGID,		"TrustSGID",		OPTV_BOOLEAN,	{0},	TRUE},
+    {OPTION_TRUSTSUID,		"TrustSUID",		OPTV_BOOLEAN,	{0},	TRUE},
 #endif /* __linux__ */
     {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
@@ -366,6 +374,12 @@ is_proc_client_trusted(AClientPrivPtr client)
     if (root_userns != client->userns)
 	return 0;
 
+    if (suid_is_trusted && client->is_suid)
+	return 1;
+
+    if (sgid_is_trusted && client->is_sgid)
+	return 1;
+
     /* Check against trusted clients list. */
     for (asec_inode **tc = trusted_clients_list; *tc; tc++) {
 	if (client->ino == (*tc)->ino
@@ -429,6 +443,49 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
     } else {
 	LOG("fill_client_stats: could not derefer /proc/%d/ns/user: %s\n", pid, strerror(errno));
 	client->userns = 0;
+    }
+
+    if (unlikely((len = snprintf(path, sizeof(path), "/proc/%d/status", pid)) >= sizeof(path)))
+	LOG("fill_client_stats: path \"%s...\" is longer (%d) than expected, please report bug\n", path, len);
+
+    static const char uid_str[] = "Uid:";
+    static const char gid_str[] = "Gid:";
+    char *id_str;
+    uid_t id, eid, savedid, fsid;
+    FILE *status;
+    char *line = NULL;
+    size_t size;
+    int parsed = 0;
+    if ((status = fopen(path, "r")) != NULL) {
+	while (getline(&line, &size, status) != -1
+		&& parsed < 2) {
+	    if (strncmp(line, uid_str, strlen(uid_str))
+	     || strncmp(line, gid_str, strlen(gid_str)))
+		continue;
+
+	    if (sscanf(line, "%ms %u %u %u %u",
+			&id_str, &id, &eid, &savedid, &fsid) > 0) {
+		if (id != eid) {
+		    if (strcmp(id_str, uid_str) == 0) {
+			client->is_suid = 1;
+			INFO("fill_client_stats: client #%d is suid: real uid = %u, setuid = %u",
+				client->cid, id, eid);
+		    } else {
+			client->is_sgid = 1;
+			INFO("fill_client_stats: client #%d is sgid: real gid = %u, setgid = %u",
+				client->cid, id, eid);
+		    }
+		}
+		free(id_str);
+	    }
+
+	    parsed++;
+	}
+
+	if (line)
+	    free(line);
+    } else {
+	LOG("fill_client_stats: could not open %s: %s\n", path, strerror(errno));
     }
 
     DEBUG("leave fill_client_stats\n");
@@ -605,6 +662,10 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &permanent);
     xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &strict);
     xf86GetOptValBool(ALTSecOptions, OPTION_SPYMODE, &spy_mode);
+#if __linux__
+    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSGID, &sgid_is_trusted);
+    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSUID, &suid_is_trusted);
+#endif /* __linux__ */
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
