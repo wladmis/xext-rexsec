@@ -541,6 +541,24 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
     return 0;
 }
 
+static int
+check_ownership(AClientPrivPtr client, ASelPrivPtr selection)
+{
+    if (client->cid == selection->cid
+     && client->ts.milliseconds == selection->ts.milliseconds
+     && client->ts.months == selection->ts.months)
+	return 1;
+
+    if (clients[selection->cid] == NULL)
+	return 0;
+
+    AClientPrivPtr sel_client = dixLookupPrivate(&clients[selection->cid]->devPrivates, asec_client_key);
+
+    int ret = are_equal_clients(client, sel_client);
+
+    return ret;
+}
+
 #if __linux__
 static void
 construct_trusted_clients_list(const char *str)
@@ -1480,11 +1498,19 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
+    /* Only onwer or trusted client can destroy the selection. */
+    if (rec->access_mode & DixDestroyAccess) {
+	if (!is_trusted_client(rec->client)
+	 || check_ownership(subj, obj))
+	    goto deny;
+    }
+
     /* Mark newly created selection. */
     if (rec->access_mode & DixCreateAccess) {
 	obj->pid = subj->pid;
 	obj->cid = subj->cid;
 	obj->ts = subj->ts;
+	return;
     }
 
     /* Allow read access to any client. */
@@ -1494,18 +1520,11 @@ passthru:
     if (is_trusted_client(rec->client))
 	return;
 
-    AClientPrivPtr owner;
-    if (clients[obj->cid] != NULL) {
-	owner = dixLookupPrivate(&clients[obj->cid]->devPrivates, asec_client_key);
-	/* If cids are equal, but tses are different, that means that the
-	 * clients are different. */
-	if ((owner->cid != obj->cid || (owner->ts.months == obj->ts.months
-				     && owner->ts.milliseconds == obj->ts.milliseconds))
-	 && are_equal_clients(owner, subj))
-	    return;
-    }
+    if (check_ownership(subj, obj))
+	return;
 
-    rec->status = BadMatch;
+deny:
+    rec->status = BadAccess;
     LOG("Selection: Deny selection %s owned by client #%d access %#x requested by client #%d (%s)\n",
 	atom_name, obj->cid, rec->access_mode, rec->client->index, subj->cmdname);
 }
