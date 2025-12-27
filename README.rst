@@ -293,6 +293,9 @@ SharedProps      A colon-separated list of shared properties.            *None*
 Strict           If false, a UID-based separation is used instead of     ``True``
                  client-based.
 
+                 This is deprecated, option and will be deleted in the
+                 future (i.e., it will be always ``True``).
+
 TrustedClients   A colon-separated list of executables whose clients     *None*
                  should be marked as trusted.
 
