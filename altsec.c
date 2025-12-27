@@ -104,29 +104,25 @@ typedef struct {
 
 DevPrivateKeyRec asec_prop_key_rec;
 #define asec_prop_key (&asec_prop_key_rec)
-typedef struct {
-    int uid;
-    pid_t pid;
-    /* The value of a global property can be read by any client.
-     * All properties in the trusted mode or by Window Manager are global. */
-    int wm; /* property is handled by window manager */
-} APropPrivRec, *APropPrivPtr;
-
 DevPrivateKeyRec asec_window_key_rec;
 #define asec_window_key (&asec_window_key_rec)
-typedef struct {
-    pid_t pid;
-    int uid;
-} ASecWinPrivRec, *AWinPrivPtr;
-
 DevPrivateKeyRec asec_sel_key_rec;
 #define asec_sel_key (&asec_sel_key_rec)
 typedef struct {
+    /* Common fields. */
+    int uid;
     pid_t pid;
     int cid;
     TimeStamp ts;
+
+    /* Properties-only. */
+    /* The value of a global property can be read by any client.
+     * All properties in the trusted mode or by Window Manager are global. */
+    int wm; /* property is handled by window manager */
+
+    /* Selection-only. */
     int is_faked;
-} ASelPrivRec, *ASelPrivPtr;
+} APrivateRec, *APrivatePtr;
 
 #if __linux__
 typedef struct {
@@ -542,7 +538,7 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
 }
 
 static int
-check_ownership(AClientPrivPtr client, ASelPrivPtr selection)
+check_ownership(AClientPrivPtr client, APrivatePtr selection)
 {
     if (client->cid == selection->cid
      && client->ts.milliseconds == selection->ts.milliseconds
@@ -776,15 +772,15 @@ altsecModuleInit(INITARGS)
 	    FatalError("ALTSecurity: could not register private key asec_client_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(AClientPrivRec))) {
+	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(APrivateRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_window_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(APropPrivRec))) {
+	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(APrivateRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_prop_key\n");
 	}
 
-	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(ASelPrivRec))) {
+	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(APrivateRec))) {
 	    FatalError("ALTSecurity: could not register private key asec_sel_key\n");
 	}
 
@@ -1035,7 +1031,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if ((rec->rtype == RT_WINDOW) &&
 	(rec->access_mode & DixCreateAccess)) {
 	WindowPtr pWin = (WindowPtr) rec->res;
-	AWinPrivPtr wobj = dixLookupPrivate(&pWin->devPrivates, asec_window_key);
+	APrivatePtr wobj = dixLookupPrivate(&pWin->devPrivates, asec_window_key);
 
 	wobj->uid = subj->uid;
 	wobj->pid = subj->pid;
@@ -1163,7 +1159,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	return;
 
     AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
-    APropPrivPtr obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
+    APrivatePtr obj = dixLookupPrivate(&pProp->devPrivates, asec_prop_key);
     AClientPrivPtr wo_priv = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
 
     /* Properties are used for inter-client communications, so let's allow to
@@ -1432,7 +1428,7 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     if (!pSel || !pSel->selection)
 	return;
 
-    ASelPrivPtr obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
+    APrivatePtr obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
 
     Atom name = pSel->selection;
     const char *atom_name = NameForAtom(name);
