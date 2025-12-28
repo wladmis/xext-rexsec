@@ -1060,7 +1060,6 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	    return;
 
 	if ((!strict && (subj->uid == obj->uid))
-	 || (subj->pid == obj->pid)
 	 || ((rec->access_mode | allowed) == allowed))
 	    return;
     }
@@ -1224,9 +1223,11 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
 	    obj->pid = subj->pid;
 	    obj->uid = subj->uid;
+	    obj->cid = subj->cid;
+	    obj->ts = obj->ts;
 	}
 
-	if (subj->pid == obj->pid
+	if (check_ownership(subj, obj)
 	 || (!strict && (subj->uid == obj->uid)))
 	    return;
 
@@ -1255,7 +1256,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	 && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
 	    return;
 
-	if (subj->pid == obj->pid
+	if (check_ownership(subj, obj)
 	 || (!strict && (subj->uid == obj->uid)))
 	    return;
 
@@ -1272,18 +1273,11 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 
 deny:
     LOG("Property: Deny client #%d (cmdname = %s, pid = %d, uid = %d) access %#x to the property %s "
-	    "owned by client #%d (window client uid = %d, obj->uid = %d, obj->pid = %d, obj->wm = %d)\n",
-	rec->client->index,
-	subj->cmdname,
-	subj->pid,
-	subj->uid,
-	rec->access_mode,
-	propName,
-	wClient(rec->pWin)->index,
-	wo_priv->uid,
-	obj->uid,
-	obj->pid,
-	obj->wm);
+	    "owned by client #%d (window client uid = %d, "
+	    "obj->uid = %d, obj->cid = %d, obj->pid = %d, obj->wm = %d)\n",
+	rec->client->index, subj->cmdname, subj->pid, subj->uid, rec->access_mode, propName,
+	wClient(rec->pWin)->index, wo_priv->uid,
+	obj->uid, obj->cid, obj->pid, obj->wm);
 
     rec->status = BadAccess;
 }
@@ -1317,9 +1311,6 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	obj = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
 
 	if (!strict && (subj->uid == obj->uid))
-	    return;
-
-	if (subj->pid == obj->pid)
 	    return;
 
 	if (are_equal_clients(subj, obj))
@@ -1384,8 +1375,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	if (wClient(rec->pWin) == serverClient)
 	    continue;
 
-	if ((!strict && (subj->uid == obj->uid))
-	 || subj->pid == obj->pid)
+	if ((!strict && (subj->uid == obj->uid)))
 	    continue;
 
 	if (rec->events[i].u.u.type == PropertyNotify
@@ -1451,6 +1441,8 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 
     if (rec->access_mode & DixCreateAccess) {
 	obj->pid = subj->pid;
+	obj->cid = subj->cid;
+	obj->ts = subj->ts;
 
 	/* Only focused with recent input or trusted clients can own the real
 	 * selection, but let others own the faked one to not make them upset. */
@@ -1474,7 +1466,7 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 
 	while (pSel->selection != name
 	   || (obj->is_faked && is_permitted)
-	   || (!is_permitted && subj->pid != obj->pid)) {
+	   || (!is_permitted && !check_ownership(subj, obj))) {
 	    if ((pSel = pSel->next) == NULL)
 		break;
 	    obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
