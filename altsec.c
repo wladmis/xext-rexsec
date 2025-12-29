@@ -84,7 +84,7 @@ typedef struct {
     int uid;
     int is_suid;
     int is_sgid;
-    char *cmdname; /* just for info, do not repy on it: can be faked */
+    char *cmdname; /* just for info, do not rely on it: can be faked */
 #if __linux__
     /* the executable stats */
     unsigned int major;
@@ -642,7 +642,7 @@ construct_trusted_clients_list(const char *str)
     tcl_tmp = reallocarray(trusted_clients_list, size + 1, sizeof(*trusted_clients_list));
     if (tcl_tmp == NULL)
 	FatalError("construct_trusted_clients_list:"
-		"could not realloc memory fo trusted_clients_list, size = %d\n",
+		"could not realloc memory to trusted_clients_list, size = %d\n",
 		size);
 
     trusted_clients_list = tcl_tmp;
@@ -654,7 +654,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 {
     void *ret = (void *) 1;
 
-    /* These extenstions are needed for modern clients with modern graphical
+    /* These extensions are needed for modern clients with modern graphical
      * toolkits to work. It's OK to allow them all, because we allow a full
      * access to them only for trusted clients, and only safe subset of
      * operations (handled by resource access for example) allowed for
@@ -917,7 +917,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
 		/* If client is owned by Window Manager mark it*/
 		/* FIXME: We should check somehow that it is still a Window
-		 * Manager process. Unfortunatelly different OSes have
+		 * Manager process. Unfortunately different OSes have
 		 * different APIs to deal with processes information */
 		if (wmpid != -1 && pClientPriv->pid == wmpid) {
 		    if (client_cmdname && client_cmdargs
@@ -1167,7 +1167,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
     /* Properties are used for inter-client communications, so let's allow to
      * send (i.e. create and write) for anyone, if they are not described in
      * ICCCM and EWMH specs for special usage, but read and destroy by the
-     * property or widnow owners. */
+     * property or window owners. */
     if (rec->access_mode & (DixCreateAccess|DixWriteAccess)) {
 	/* Handle property creation separately */
 	if (rec->access_mode & DixCreateAccess) {
@@ -1299,7 +1299,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 						&& rec->events[i].u.u.type != KeyRelease)
 	     || (rec->dev == inputInfo.pointer && rec->events[i].u.u.type != ButtonPress
 					       && rec->events[i].u.u.type != ButtonRelease))
-		LOG("Send (trace): (client #%d or device '%s') is send ingevent %s to window, owned by client #%d\n",
+		LOG("Send (trace): (client #%d or device '%s') is sending event %s to window, owned by client #%d\n",
 			rec->client ? rec->client->index : -1,
 			rec->dev ? rec->dev->name : "(none)",
 			LookupEventName(rec->events[i].u.u.type),
