@@ -1006,13 +1006,11 @@ void
 ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceResourceAccessRec *rec = calldata;
-    /* WindowPtr pWin; */
     AClientPrivPtr subj, obj = NULL;
-    /* ClientPtr pClient = rec->client; */
     XID cid = CLIENT_ID(rec->id);
     /* Allow to set properties and send events so make clipboard work,
      * and let ALTSecProperty handles this */
-    Mask allowed = ALTSecResourceMask | DixSetPropAccess | DixSendAccess; /* Properties have polyinstallation in ALTSec */
+    Mask allowed = ALTSecResourceMask | DixSetPropAccess;
 
     if (rec->client == serverClient)
 	return;
@@ -1027,6 +1025,11 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 
     if (rec->rtype == RT_WINDOW)
 	allowed |= ALTSecSecurityWindowExtraMask;
+
+    /* This follows DixWriteAccess for properties,
+     * thus allowing clipboard exchange to work. */
+    if (rec->rtype == (RC_DRAWABLE|RT_WINDOW))
+	allowed |= DixSendAccess;
 
     if ((rec->rtype == RT_WINDOW) &&
 	(rec->access_mode & DixCreateAccess)) {
