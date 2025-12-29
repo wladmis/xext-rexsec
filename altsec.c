@@ -1069,7 +1069,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
      && strcmp(SecurityLookupRequestName(rec->client), "RANDR:SelectInput") == 0)
 	return;
 
-    LOG("Resource: deny client number #%d (cmdname=%s, uid=%d, pid=%d) "
+    LOG("Resource: Deny client number #%d (cmdname=%s, uid=%d, pid=%d) "
 	"access mode 0x%lx to resource 0x%lx "
 	"resource type 0x%lx "
 	"of client #%d (cmdname=%s, uid=%d, pid=%d), on request %s\n",
@@ -1326,7 +1326,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	     || evtype == DestroyNotify) {
 		continue;
 	    } else {
-		LOG("Send: deny client #%d (cmdname = %s, uid=%d, pid=%d) "
+		LOG("Send: Deny client #%d (cmdname = %s, uid=%d, pid=%d) "
 		    "from sending event of type %s to window 0x%lx of "
 		    "client #%d (uid=%d, pid=%d)\n",
 			rec->client->index, subj->cmdname, subj->uid, subj->pid,
@@ -1391,7 +1391,7 @@ ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
     return;
 
 deny:
-    LOG("Receive: deny client #%d (%s) to receive message %s (%d) sent to window belonged to client #%d\n",
+    LOG("Receive: Deny client #%d (%s) to receive message %s (%d) sent to window belonged to client #%d\n",
 	    rec->client->index,
 	    subj->cmdname,
 	    LookupEventName(event),
@@ -1538,7 +1538,7 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 	return;
 
     rec->status = BadAccess;
-    LOG("Client: deny client request of uid %d to uid %d\n", subj->uid, obj->uid);
+    LOG("Client: Deny client request of uid %d to uid %d\n", subj->uid, obj->uid);
 }
 
 void
