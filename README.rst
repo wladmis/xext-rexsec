@@ -167,7 +167,6 @@ make it trusted, or add it to the list of trusted clients (see
 SELECTIONS HANDLING
 -------------------
 
-FIXME 
 Not to be confused with clipboard selections, X11 selections is a
 general X11 mechanism for inter-client communication. There are two
 predefined selections in X11: primary and clipboard, altsec handles
