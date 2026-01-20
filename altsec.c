@@ -59,9 +59,6 @@ ino_t root_userns = 0;
 ino_t rootdir = 0;
 unsigned int rootdir_major = 0;
 unsigned int rootdir_minor = 0;
-int suid_is_trusted = 1;
-int sgid_is_trusted = 1;
-int trust_unsandboxed = 0;
 #endif /* __linux__ */
 
 /* A Window Manager is trusted client that by altsec design is allowed
@@ -140,9 +137,6 @@ typedef struct {
  */
 char **add_ext_list = NULL;
 char **shared_props_list = NULL;
-#if __linux__
-asec_inode **trusted_clients_list = NULL;
-#endif /* __linux__ */
 int permanent = 1;
 
 /* Similar from X11 Security extension */
@@ -185,9 +179,6 @@ typedef enum {
     OPTION_LOGLEVEL,
     OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
-    OPTION_TRUSTEDCLIENTS,
-    OPTION_TRUSTSGID,
-    OPTION_TRUSTSUID,
     OPTION_TRUSTUNSANDBOXED,
     OPTION_SPYMODE,
     THE_END_OF_OPTIONS
@@ -198,12 +189,6 @@ static OptionInfoRec ALTSecOptions[] = {
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
-#if __linux__
-    {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
-    {OPTION_TRUSTSGID,		"TrustSGID",		OPTV_BOOLEAN,	{0},	TRUE},
-    {OPTION_TRUSTSUID,		"TrustSUID",		OPTV_BOOLEAN,	{0},	TRUE},
-    {OPTION_TRUSTUNSANDBOXED,	"TrustUnsandboxed",	OPTV_BOOLEAN,	{0},	FALSE},
-#endif /* __linux__ */
     {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
@@ -337,6 +322,10 @@ is_trusted_client(ClientPtr client)
 static int
 is_proc_client_trusted(AClientPrivPtr client)
 {
+    if (client->uid != trusted_uid
+     && client->uid != 0)
+	return 0;
+
     /* TODO: add proper support for non-Linux systems. */
 #if __linux__
     /* If we do not know information about real /,
@@ -360,31 +349,9 @@ is_proc_client_trusted(AClientPrivPtr client)
 		client->cid, client->cmdname);
 	return 0;
     }
-
-    if (trust_unsandboxed)
-	return 1;
-
-    if (suid_is_trusted && client->is_suid)
-	return 1;
-
-    if (sgid_is_trusted && client->is_sgid)
-	return 1;
-
-    /* Check against trusted clients list. */
-    for (asec_inode **tc = trusted_clients_list; *tc; tc++) {
-	DEBUG("is_proc_client_trusted: compare client #%d (%s) inodes (%lu vs %lu) and devices ((%u,%u) vs (%u,%u)\n",
-		client->cid, client->cmdname,
-		client->ino, (*tc)->ino,
-		client->major, client->minor,
-		(*tc)->major, (*tc)->minor);
-	if (client->ino == (*tc)->ino
-	 && client->minor == (*tc)->minor
-	 && client->major == (*tc)->major)
-	    return 1;
-    }
 #endif /* __linux__ */
 
-    return 0;
+    return 1;
 }
 
 #if __linux__
@@ -541,100 +508,6 @@ check_ownership(AClientPrivPtr client, APrivatePtr selection)
     return ret;
 }
 
-#if __linux__
-static void
-construct_trusted_clients_list(const char *str)
-{
-    char *path_env = strdup(getenv("PATH"));
-    char **path_lst = make_str_list(path_env);
-    char path[PATH_MAX];
-
-    char **tmp = make_str_list(str);
-    asec_inode **tcl_tmp = NULL;
-
-    int size = 0;
-    for (char **iter = tmp; *iter; iter++, size++);
-    trusted_clients_list = calloc(size + 1, sizeof(*trusted_clients_list));
-    if (trusted_clients_list == NULL)
-	FatalError("construct_trusted_clients_list: "
-		"could not allocate memory for trusted_clients_list, size = %d\n",
-		size);
-
-    int i = 0;
-    int len;
-    struct stat sb;
-    for (char **iter = tmp; *iter; iter++) {
-	/* Absolute path. */
-	if ((*iter)[0] == '/') {
-	    if (stat(*iter, &sb) != -1) {
-		if ((trusted_clients_list[i] = malloc(sizeof(**trusted_clients_list))) == NULL)
-		    FatalError("construct_trusted_clients_list: "
-			    "could not allocate memory for trusted_clients_list[%d]\n",
-			    i);
-		trusted_clients_list[i]->ino = sb.st_ino;
-		trusted_clients_list[i]->major = major(sb.st_dev);
-		trusted_clients_list[i]->minor = minor(sb.st_dev);
-		INFO("construct_trusted_clients_list: add %s trusted_clients_list[%d], ino = %lu, (%u,%u)\n",
-			*iter, i, trusted_clients_list[i]->ino,
-			trusted_clients_list[i]->major, trusted_clients_list[i]->minor);
-		i++;
-	    } else {
-		LOG("construct_trusted_clients_list: "
-		    "could not get stats for %s (%s), skipping\n",
-		    *iter, strerror(errno));
-	    }
-	    continue;
-	}
-
-	for (char **path_iter = path_lst; *path_iter; path_iter++) {
-	    len = strlen(*path_iter);
-
-	    /* A simple attempt to normalize path.
-	     * I do not want to make it more complicated and general for now. */
-	    if ((*path_iter)[len - 1] == '/')
-		len--;
-
-	    int path_len;
-	    if (unlikely((path_len = snprintf(path, sizeof(path), "%.*s/%s", len, *path_iter, *iter) >= sizeof(path)))) {
-		LOG("construct_trusted_clients_list: path \"%s...\" is longer (%d) than expected, please report bug\n"
-		    "construct_trusted_clients_list: could not add %s to TrustedClients\n",
-		    path, path_len, *iter);
-		continue;
-	    }
-
-	    if (stat(path, &sb) < 0 || !(sb.st_mode & S_IFREG))
-		continue;
-
-	    if ((trusted_clients_list[i] = malloc(sizeof(**trusted_clients_list))) == NULL)
-		    FatalError("construct_trusted_clients_list: "
-			    "could not allocate memory for trusted_clients_list[%d]\n",
-			    i);
-	    trusted_clients_list[i]->ino = sb.st_ino;
-	    trusted_clients_list[i]->major = major(sb.st_dev);
-	    trusted_clients_list[i]->minor = minor(sb.st_dev);
-	    INFO("construct_trusted_clients_list: add %s to trusted_clients_list[%d], ino = %lu, (%u,%u)\n",
-		    path, i, trusted_clients_list[i]->ino,
-		    trusted_clients_list[i]->major, trusted_clients_list[i]->minor);
-	    i++;
-	    break;
-	}
-    }
-
-    size = i;
-
-    trusted_clients_list[i] = NULL;
-    DEBUG("construct_trusted_clients_list: trusted_clients_list[%d] = NULL\n", i);
-
-    tcl_tmp = reallocarray(trusted_clients_list, size + 1, sizeof(*trusted_clients_list));
-    if (tcl_tmp == NULL)
-	FatalError("construct_trusted_clients_list:"
-		"could not realloc memory to trusted_clients_list, size = %d\n",
-		size);
-
-    trusted_clients_list = tcl_tmp;
-}
-#endif /* __linux__ */
-
 static void *
 altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((unused)) int *errmaj, int *errmin)
 {
@@ -674,11 +547,6 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
     xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &permanent);
     xf86GetOptValBool(ALTSecOptions, OPTION_SPYMODE, &spy_mode);
-#if __linux__
-    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSGID, &sgid_is_trusted);
-    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSUID, &suid_is_trusted);
-    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTUNSANDBOXED, &trust_unsandboxed);
-#endif /* __linux__ */
 
     const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
 
@@ -701,12 +569,6 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     const char *shared_props = xf86GetOptValString(ALTSecOptions, OPTION_SHARED_PROPS);
     if (shared_props != NULL)
 	shared_props_list = make_str_list(shared_props);
-
-#if __linux__
-    const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
-    if (trusted_clients != NULL)
-	construct_trusted_clients_list(trusted_clients);
-#endif /* __linux__ */
 
 #if __linux__
     struct stat st;
@@ -891,7 +753,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		   );
 
 		if (trusted_uid > 0
-		 && pClientPriv->uid == trusted_uid
 		 && is_proc_client_trusted(pClientPriv)) {
 		    pClientPriv->is_trusted = 1;
 		    INFO("client #%d (%s): client is trusted\n",

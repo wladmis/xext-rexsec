@@ -11,10 +11,10 @@ is not very flexible.  It is supposed to just work and requires a zero
 or a very little configuration.
 
 It aims to protect only the X11 resources of the clients and does not
-handle other entities like filesystem access, etc. So for more complete
-application isolation it should be used in conjunction with other
-security mechanisms like UID-based separation, AppArmor, SELinux,
-firejail, etc.
+handle other entities like filesystem access, etc. To achieve this, you
+should configure some kind of application sandboxing, like UID-based
+separation, container-isolation, Bubblewrap, Firejail or Flatpak
+sandboxing.
 
 For installation and configuration please refer to the `BUILD AND
 INSTALL`_ and `CONFIGURATION`_ sections.
@@ -62,28 +62,6 @@ read-only access to some other resources.
 All clients are divided into trusted and confined clients. See `TRUSTED
 CLIENTS`_.
 
-Altsec's lifetime modes are divided into several stages. When X starts,
-altsec runs in the *insecure mode*, all clients started in this mode are
-marked as *trusted*. This mode lasts until some Window Manager started.
-After that altsec switches to the *secure mode*, and all clients started
-in this mode are marked as *confined* by default.
-
-Take a look to the following ``.xinitrc`` example::
-
-    #/bin/sh
-
-    # insecure mode
-    xrdb ~/.Xresources
-    xsetroot -gray
-    xrandr -dpi 96
-
-    eval $(ssh-agent)
-
-    # Window manager (transition to secure mode after this command)
-    somewm
-
-There ``somewm`` is some window manager.
-
 CONSIDERATIONS AND LIMITATIONS
 ------------------------------
 
@@ -103,19 +81,8 @@ TRUSTED CLIENTS
 ---------------
 
 The *trusted* clients--like regular X11 clients--can do almost anything.
-Altsec marks a client as trusted in the following cases:
 
-* the client was started during insecure mode;
-* the client is a Window Manager;
-* the client executable name was defined in the list of trusted clients
-  (see `CONFIGURATION`_) and there are no other conditions why altsec
-  should mark it as confined (see below);
-* If ``TrustUnsandboxed`` option is enabled, then every unsandboxed
-  client, i.e. client that are not confined, is trusted.
-
-All other clients are marked as *confined*.
-
-Also all clients are *always* marked as ``confined`` and **never** as
+All clients are *always* marked as ``confined`` and **never** as
 ``trusted`` in the following cases:
 
 * its EUID != EUID of the WM;
@@ -160,10 +127,6 @@ can protect from some abuses.
 
 Trusted clients have unlimited access to both primary selection and
 clipboard.
-
-If you want to use a clipboard manager, start it in insecure mode to
-make it trusted, or add it to the list of trusted clients (see
-`CONFIGURATION`_).
 
 SELECTIONS HANDLING
 -------------------
@@ -234,9 +197,6 @@ Here is an example of 90-altsec.conf file, which should reside in
         Load "altsec"
 
         SubSection "altsec"
-            # A list of clients that should be considered trusted when
-            # started after secured phase.
-            Option "TrustedClients" "dmenu:nm-applet:xkill:xrandr:xsetroot:/usr/lib64/misc/ssh-askpass:/usr/libexec/at-spi2-registryd:/usr/libexec/gsd-power:/usr/libexec/gsd-xsettings"
             # Increase log level
             Option "LogLevel" "1"
         EndSubSection
@@ -290,53 +250,6 @@ SharedProps      A colon-separated list of shared properties.            *None*
                  Check ``Xorg.${DISPLAY#:}.log`` if you really need to
                  add them.
 
-TrustedClients   A colon-separated list of executables whose clients     *None*
-                 should be marked as trusted.
-
-                 By default, only clients that started at insecure phase
-                 are marked as trusted. In the real usage you might need
-                 to add some clients here. Please note that it is on you
-                 to ensure that confined clients can not start trusted
-                 clients as their children to abuse. The easiest way to
-                 achieve this is to run all confined clients under user
-                 namespace, i.e. confined via Flatpak, or firejail, etc.
-
-                 You can provide a fullpath to an executable or a
-                 relative path, resided in the ``$PATH`` of ``X`` server
-                 process.
-
-                 On Linux, every relative executable pathname provided
-                 in the list is looked up in ``$PATH`` of ``X`` server
-                 process, so that it can't be abused by creating a
-                 malicious program with the same name. Every symlink is
-                 also dereferenced when reading the configuration and
-                 before matching.  If an executable does not start with
-                 a *slash symbol* ``/``, then altsec looks up it in the
-                 ``X`` server process ``$PATH``. If it does not reside
-                 in the ``$PATH``, you should provide a full pathname to
-                 the executable.
-
-                 Linux-only for now.
-
-TrustUnsandboxed If enabled, then asec will treat every unsandboxed      ``False``
-                 application as trusted (see `TRUSTED CLIENTS`_).
-
-                 This option can be useful in case of run of complex
-                 Desktop Environment, and subject to be turning on by
-                 default in the future releases.
-
-                 Linux-only for now.
-
-TrustSUID        Treat set-uid processes as trusted. Disable it if you   ``True``
-                 do not want such behavior, but for now there is no
-                 other way to make set-uid application trusted.
-
-                 Linux-only.
-
-TrustSGID        The same as TrustSGID, but for set-gid application.     ``True``
-
-                 Linux-only.
-
 SpyMode          When enabled, allow to temporarily grant a client an    ``False``
                  ability to read other clients properties (but not to
                  change them) via following keypress combination:
@@ -349,12 +262,10 @@ SpyMode          When enabled, allow to temporarily grant a client an    ``False
 NOTE
 ====
 
-AltSec **does not** handle operating system process execution tree, in
-case of usage of trusted client list you have to make sure by yourself
-that confined clients cannot run clients from the trusted client list.
-The easiest way to achieve this is to run all confined client under user
-namespace confinement (either via firejail, Flatpak, etc) or restrict
-executables they can run with AppArmor/SELinux for example.
+AltSec **does not** handle operating system process execution tree, you
+have to confine clients by yourself.  The easiest way to achieve this is
+to run all confined client under user namespace confinement (either via
+firejail, Flatpak, etc) or run them with non-your primary user EUID.
 
 PERFORMANCE IMPACT
 ==================
