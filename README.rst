@@ -19,6 +19,8 @@ firejail, etc.
 For installation and configuration please refer to the `BUILD AND
 INSTALL`_ and `CONFIGURATION`_ sections.
 
+.. contents:: Table of contents
+
 DESIGN
 ======
 
