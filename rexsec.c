@@ -54,6 +54,7 @@ enum {
 int loglevel = 0;
 int spy_mode = 0;
 
+int trust_unsandboxed = 0;
 int trusted_uid = -1;
 #if __linux__
 ino_t root_userns = 0;
@@ -138,7 +139,6 @@ char **shared_props_list = NULL;
 asec_inode **trusted_clients_list = NULL;
 #endif /* __linux__ */
 int permanent = 1;
-int strict = 1;
 
 /* Similar from X11 Security extension */
 const Mask REXSecResourceMask =
@@ -181,10 +181,10 @@ typedef enum {
     OPTION_LOGLEVEL,
     OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
-    OPTION_STRICT,
     OPTION_TRUSTEDCLIENTS,
     OPTION_TRUSTSGID,
     OPTION_TRUSTSUID,
+    OPTION_TRUSTUNSANDBOXED,
     OPTION_SPYMODE,
     THE_END_OF_OPTIONS
 } REXSecOpts;
@@ -194,13 +194,13 @@ static OptionInfoRec REXSecOptions[] = {
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
-    {OPTION_STRICT,		"Strict",		OPTV_BOOLEAN,	{0},	FALSE},
+    {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
 #if __linux__
     {OPTION_TRUSTEDCLIENTS,	"TrustedClients",	OPTV_STRING,	{0},	FALSE},
     {OPTION_TRUSTSGID,		"TrustSGID",		OPTV_BOOLEAN,	{0},	TRUE},
     {OPTION_TRUSTSUID,		"TrustSUID",		OPTV_BOOLEAN,	{0},	TRUE},
 #endif /* __linux__ */
-    {OPTION_SPYMODE,		"SpyMode",		OPTV_BOOLEAN,	{0},	FALSE},
+    {OPTION_TRUSTUNSANDBOXED,	"TrustUnsandboxed",	OPTV_BOOLEAN,	{0},	FALSE},
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
@@ -393,7 +393,7 @@ is_proc_client_trusted(AClientPrivPtr client)
     }
 #endif /* __linux__ */
 
-    if (!strict && is_trusted_uid(client->uid))
+    if (trust_unsandboxed)
 	return 1;
 
 #if __linux__
@@ -727,8 +727,9 @@ rexsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
     xf86GetOptValInteger(REXSecOptions, OPTION_LOGLEVEL, &loglevel);
     xf86GetOptValBool(REXSecOptions, OPTION_PERMANENT, &permanent);
-    xf86GetOptValBool(REXSecOptions, OPTION_STRICT, &strict);
     xf86GetOptValBool(REXSecOptions, OPTION_SPYMODE, &spy_mode);
+    xf86GetOptValBool(REXSecOptions, OPTION_TRUSTUNSANDBOXED, &trust_unsandboxed);
+
 #if __linux__
     xf86GetOptValBool(REXSecOptions, OPTION_TRUSTSGID, &sgid_is_trusted);
     xf86GetOptValBool(REXSecOptions, OPTION_TRUSTSUID, &suid_is_trusted);
@@ -940,10 +941,7 @@ REXSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 			pClientPriv->uid
 		   );
 
-		/* If Strict option is enabled, and client is on the list
-		 * of trusted client, mark it as trusted. */
-		if (strict
-		 && trusted_uid > 0
+		if (trusted_uid > 0
 		 && is_proc_client_trusted(pClientPriv)) {
 		    pClientPriv->is_trusted = 1;
 		    INFO("client #%d (%s): client is trusted\n",
@@ -1084,8 +1082,7 @@ REXSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	if (are_equal_clients(subj, obj))
 	    return;
 
-	if ((!strict && (subj->uid == obj->uid))
-	 || ((rec->access_mode | allowed) == allowed))
+	if ((rec->access_mode | allowed) == allowed)
 	    return;
     }
 
@@ -1235,7 +1232,6 @@ REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		if (are_equal_clients(subj, wo_priv)
 		 || rec->client == serverClient
 		 || is_trusted_client(rec->client)
-		 || (!strict && (subj->uid == wo_priv->uid))
 		 || !is_matched(propName, AppWinProperties))
 		    /* allow */;
 		else
@@ -1253,8 +1249,7 @@ REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	    obj->ts = subj->ts;
 	}
 
-	if (check_ownership(subj, obj)
-	 || (!strict && (subj->uid == obj->uid)))
+	if (check_ownership(subj, obj))
 	    return;
 
 	if (is_trusted_client(rec->client))
@@ -1282,8 +1277,7 @@ REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	 && (rec->access_mode & (DixReadAccess|DixGetAttrAccess)))
 	    return;
 
-	if (check_ownership(subj, obj)
-	 || (!strict && (subj->uid == obj->uid)))
+	if (check_ownership(subj, obj))
 	    return;
 
 	if (is_trusted_client(rec->client))
@@ -1335,9 +1329,6 @@ REXSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 	    return;
 
 	obj = dixLookupPrivate(&wClient(rec->pWin)->devPrivates, asec_client_key);
-
-	if (!strict && (subj->uid == obj->uid))
-	    return;
 
 	if (are_equal_clients(subj, obj))
 	    return;
@@ -1399,9 +1390,6 @@ REXSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((un
 	    continue;
 
 	if (wClient(rec->pWin) == serverClient)
-	    continue;
-
-	if ((!strict && (subj->uid == obj->uid)))
 	    continue;
 
 	if (rec->events[i].u.u.type == PropertyNotify
@@ -1555,8 +1543,7 @@ REXSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 
     obj = dixLookupPrivate(&rec->target->devPrivates, asec_client_key);
 
-    if ((!strict && (subj->uid == obj->uid))
-     || are_equal_clients(subj, obj)
+    if (are_equal_clients(subj, obj)
      || (rec->access_mode | allowed) == allowed)
 	return;
 
