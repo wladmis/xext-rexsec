@@ -349,6 +349,9 @@ is_trusted_client(ClientPtr client)
 static int
 is_proc_client_trusted(AClientPrivPtr client)
 {
+    if (!is_trusted_uid(client->uid))
+	return 0;
+
     /* TODO: add proper support for non-Linux systems. */
 #if __linux__
     /* If we do not know information about real /,
@@ -908,7 +911,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		 * of trusted client, mark it as trusted. */
 		if (strict
 		 && trusted_uid > 0
-		 && pClientPriv->uid == trusted_uid
 		 && is_proc_client_trusted(pClientPriv)) {
 		    pClientPriv->is_trusted = 1;
 		    INFO("client #%d (%s): client is trusted\n",
