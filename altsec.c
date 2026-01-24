@@ -7,6 +7,7 @@
 
 #include "version.h"
 
+#define _free(x) if (x) { free(x); x = NULL; }
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
@@ -210,6 +211,18 @@ static OptionInfoRec ALTSecOptions[] = {
 
 _X_EXPORT XF86ModuleData altsecModuleData = { &altsecVerRec, altsecSetup, NULL };
 
+static void
+free_str_list(char **lst)
+{
+    if (lst == NULL)
+	return;
+
+    for (char **iter = lst; *iter; iter++)
+	free(*iter);
+
+    free(lst);
+}
+
 /* Make NULL-terminated list of stings */
 static char **
 make_str_list(const char *str)
@@ -223,6 +236,10 @@ make_str_list(const char *str)
 
     dstr = strdup(str);
 
+    if (dstr == NULL)
+	FatalError(ALTSEC " make_str_list: could not allocate memory for dstr: %s",
+		   strerror(errno));
+
     elem = strtok_r(dstr, ":", &saveptr);
 
     if (!elem) {
@@ -235,15 +252,20 @@ make_str_list(const char *str)
     lst = calloc(size, sizeof(*lst));
 
     do {
-	lst[num++] = elem;
+	lst[num] = strdup(elem);
+	if (lst[num] == NULL)
+	    FatalError("make_str_list: could not allocate memory for lst[%lu]: %s",
+		       num, strerror(errno));
+	num++;
 
 	if (num == size) {
 	    size *= 2;
 	    tmp = reallocarray(lst, size, sizeof(*lst));
 
 	    if (!tmp) {
-		free(lst);
-		return NULL;
+		free_str_list(lst);
+		lst = NULL;
+		goto err;
 	    }
 
 	    lst = tmp;
@@ -255,25 +277,16 @@ make_str_list(const char *str)
     tmp = reallocarray(lst, (num + 1), sizeof(*lst));
 
     if (!tmp) {
-	free(lst);
-	return NULL;
+	free_str_list(lst);
+	lst = NULL;
+	goto err;
     }
 
     lst = tmp;
 
+err:
+    free(dstr);
     return lst;
-}
-
-void
-free_str_list(char **lst)
-{
-    if (lst == NULL)
-	return;
-
-    for (char **iter = lst; *iter; iter++)
-	free(*iter);
-
-    free(lst);
 }
 
 static int
@@ -472,7 +485,7 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 	while (getline(&line, &size, status) != -1
 		&& parsed < 2) {
 	    if (strncmp(line, uid_str, strlen(uid_str))
-	     || strncmp(line, gid_str, strlen(gid_str)))
+	     && strncmp(line, gid_str, strlen(gid_str)))
 		continue;
 
 	    if (sscanf(line, "%ms %u %u %u %u",
@@ -488,14 +501,13 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 				client->cid, id, eid);
 		    }
 		}
-		free(id_str);
+		_free(id_str);
 	    }
 
 	    parsed++;
 	}
 
-	if (line)
-	    free(line);
+	_free(line);
     } else {
 	LOG("fill_client_stats: could not open %s: %s\n", path, strerror(errno));
     }
@@ -562,7 +574,17 @@ check_ownership(AClientPrivPtr client, APrivatePtr selection)
 static void
 construct_trusted_clients_list(const char *str)
 {
-    char *path_env = strdup(getenv("PATH"));
+    char *path_env = getenv("PATH");
+
+    if (path_env == NULL)
+	return;
+
+    path_env = strdup(path_env);
+
+    if (path_env == NULL)
+	FatalError("construct_trusted_clients_list: could not allocate memory for path_env: %s\n",
+		strerror(errno));
+
     char **path_lst = make_str_list(path_env);
     char path[PATH_MAX];
 
@@ -686,6 +708,10 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	"";
     char *ext_str = strdup(allowed_ext);
 
+    if (ext_str == NULL)
+	FatalError("altsecSetup: could not allocate memory for ext_str: %s",
+		   strerror(errno));
+
     xf86ProcessOptions(-1, opts, ALTSecOptions);
 
     xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
@@ -708,7 +734,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     }
 
     add_ext_list = make_str_list(ext_str);
-    free(ext_str);
+    _free(ext_str);
 
     if (!add_ext_list) {
 	ret = NULL;
@@ -751,11 +777,8 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
 exit:
     if (!ret) {
-	if (add_ext_list)
-	    free(add_ext_list);
-
-	if (shared_props_list)
-	    free(shared_props_list);
+	_free(add_ext_list);
+	_free(shared_props_list);
     } else {
 	LoadExtensionList(&altsecExt, 1 , FALSE);
     }
@@ -888,7 +911,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
 		const char *client_cmdargs = GetClientCmdArgs(pci->client);
-		pClientPriv->cmdname = strndup(client_cmdname, 64);
+		if (client_cmdname)
+		    pClientPriv->cmdname = strndup(client_cmdname, 64);
 
 		if (creds->fieldsSet & LCC_PID_SET) {
 		    pClientPriv->pid = creds->pid;
@@ -937,8 +961,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
 			wmpid = -1;
 
-			free(wmcmdname);
-			free(wmcmdargs);
+			_free(wmcmdname);
+			_free(wmcmdargs);
 		    }
 		}
 
@@ -956,10 +980,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    }
 
 	    INFO("DEREGISTER client #%d (%s)\n", pClientPriv->cid, pClientPriv->cmdname);
-	    if (pClientPriv->cmdname) {
-		free(pClientPriv->cmdname);
-		pClientPriv->cmdname = NULL;
-	    }
+	    _free(pClientPriv->cmdname);
 
 	    if (pClientPriv->wm) {
 		LOG("!!! Window Manager exited\n");
@@ -968,8 +989,8 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		    /* Window Manager exits, stop protecting entities */
 		    trusted_uid = -1;
 		    wmpid = -1;
-		    free(wmcmdname);
-		    free(wmcmdargs);
+		    _free(wmcmdname);
+		    _free(wmcmdargs);
 		    LOG("!!! Window Manager exited, stop protecting X11 entities\n");
 		}
 	    }
@@ -1186,6 +1207,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		    obj->wm = 1;
 		    wmpid = subj->pid;
 		    wmcid = rec->client->index;
+		    /* Do not care if strdup() fails here. */
 		    if (rec->client->clientIds->cmdname)
 			wmcmdname = strdup(rec->client->clientIds->cmdname);
 		    if (rec->client->clientIds->cmdargs)
