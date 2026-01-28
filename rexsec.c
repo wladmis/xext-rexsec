@@ -154,6 +154,7 @@ static void rexsecModuleInit(INITARGS);
 void rexsecExtensionInit(void);
 
 static MODULESETUPPROTO(rexsecSetup);
+static MODULETEARDOWNPROTO(rexsecUnload);
 
 ExtensionModule rexsecExt =
 {
@@ -203,7 +204,7 @@ static OptionInfoRec REXSecOptions[] = {
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
-_X_EXPORT XF86ModuleData rexsecModuleData = { &rexsecVerRec, rexsecSetup, NULL };
+_X_EXPORT XF86ModuleData rexsecModuleData = { &rexsecVerRec, rexsecSetup, rexsecUnload };
 
 static void
 free_str_list(char **lst)
@@ -1612,6 +1613,55 @@ REXSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
 #endif /* __linux__ */
 	INFO("SpyMode: client #%d is out of spymode now\n", fkbd->index);
     }
+}
+
+static void
+rexsecUnload(__attribute__ ((unused)) void *data)
+{
+    /* Unregister all the callbacks. */
+    DeleteCallback(&ClientStateCallback, REXSecClientState, NULL);
+    XaceDeleteCallback(XACE_EXT_DISPATCH, REXSecExtension, NULL);
+    XaceDeleteCallback(XACE_RESOURCE_ACCESS, REXSecResourceAccess, NULL);
+    XaceDeleteCallback(XACE_CLIENT_ACCESS, REXSecClient, NULL);
+    XaceDeleteCallback(XACE_PROPERTY_ACCESS, REXSecProperty, NULL);
+    XaceDeleteCallback(XACE_SEND_ACCESS, REXSecSend, NULL);
+    XaceDeleteCallback(XACE_RECEIVE_ACCESS, REXSecReceive, NULL);
+    XaceDeleteCallback(XACE_EXT_ACCESS, REXSecExtension, NULL);
+    XaceDeleteCallback(XACE_SELECTION_ACCESS, REXSecSelection, NULL);
+    XaceDeleteCallback(XACE_SERVER_ACCESS, REXSecServerAccess, NULL);
+    XaceDeleteCallback(XACE_KEY_AVAIL, REXSecKeyAvailable, NULL);
+
+    /* Clean allocated memory within clients devPrivates. */
+    AClientPrivPtr dp;
+    for (int i = 0; i < currentMaxClients; i++) {
+	if (clients[i] == NULL)
+	    continue;
+
+	dp = dixLookupPrivate(&clients[i]->devPrivates, asec_client_key);
+
+	if (dp == NULL)
+	    continue;
+
+	_free(dp->cmdname);
+    }
+
+    /* Clean mess up. */
+    if (add_ext_list)
+	free_str_list(add_ext_list);
+
+    if (shared_props_list)
+	free_str_list(shared_props_list);
+
+#if __linux__
+    if (trusted_clients_list) {
+	for (asec_inode **iter = trusted_clients_list; *iter; iter++) {
+	    free(*iter);
+	}
+	free(trusted_clients_list);
+    }
+#endif /* __linux__ */
+
+    INFO("unloaded\n");
 }
 
 void
