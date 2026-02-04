@@ -1,7 +1,6 @@
 GIT 		?= git
 PKGCONF 	:= $(shell pkg-config --cflags xorg-server xproto)
 XORGEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extensions
-TYPOEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extenstions
 
 EXTRA_CFLAGS += $(PKGCONF)
 EXTRA_CFLAGS += -fPIC -std=c99
@@ -38,14 +37,7 @@ xext-altsec-%.tar.gz: $(SOURCES) VERSION
 tarball: VERSION
 	@$(MAKE) xext-altsec-$(shell cat VERSION).tar.gz
 
-fix-path:
-	@test -d $(DESTDIR)$(TYPOEXTDIR) && \
-		mkdir -p $(DESTDIR)$(XORGEXTDIR) && \
-		rm -f $(DESTDIR)$(TYPOEXTDIR)/altsec.so && \
-		rmdir $(DESTDIR)$(TYPOEXTDIR) && \
-		ln -rs $(DESTDIR)$(XORGEXTDIR) $(DESTDIR)$(TYPOEXTDIR) ||:
-
-install: fix-path altsec.so
+install: altsec.so
 	install -pD altsec.so $(DESTDIR)$(XORGEXTDIR)/altsec.so
 
 clean:
