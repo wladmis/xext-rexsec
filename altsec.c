@@ -69,9 +69,8 @@ int sgid_is_trusted = 1;
  * different X11 clients, for example in the case of reconfiguration. To ensure
  * there is no a pid collision altsec also keep WM command name and arguments. */
 pid_t wmpid = -1; /* contains the Window Manager pid */
-int wmcid = -1;
-char *wmcmdname = NULL;
-char *wmcmdargs = NULL;
+int wmcid = -1; /* contains the Window Manager cid */
+int wmccnt = 0; /* Number of WM clients */
 
 pid_t selection_owner = -1;
 
@@ -910,7 +909,6 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
 	    if (!GetLocalClientCreds(pci->client, &creds) && creds != NULL) {
 		const char *client_cmdname = GetClientCmdName(pci->client);
-		const char *client_cmdargs = GetClientCmdArgs(pci->client);
 		if (client_cmdname)
 		    pClientPriv->cmdname = strndup(client_cmdname, 64);
 
@@ -946,24 +944,12 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 		 * Manager process. Unfortunately different OSes have
 		 * different APIs to deal with processes information */
 		if (wmpid != -1 && pClientPriv->pid == wmpid) {
-		    if (client_cmdname && client_cmdargs
-		     && strcmp(client_cmdname, wmcmdname) == 0
-		     && strcmp(client_cmdargs, wmcmdargs) == 0) {
-			pClientPriv->wm = 1;
-			pClientPriv->is_trusted = 1;
+		    pClientPriv->wm = 1;
+		    pClientPriv->is_trusted = 1;
+		    wmccnt++;
 
-			INFO("Initialized client #%d (%s) by Window Manager\n",
-			      pClientPriv->cid, pClientPriv->cmdname);
-		    } else {
-			INFO("pid %d is no longer owned by "
-			    "the Window Manager process\n",
-				wmpid);
-
-			wmpid = -1;
-
-			_free(wmcmdname);
-			_free(wmcmdargs);
-		    }
+		    INFO("Initialized client #%d (%s) by Window Manager\n",
+			    pClientPriv->cid, pClientPriv->cmdname);
 		}
 
 		FreeLocalClientCreds(creds);
@@ -983,15 +969,17 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 	    _free(pClientPriv->cmdname);
 
 	    if (pClientPriv->wm) {
-		LOG("!!! Window Manager exited\n");
+		wmccnt--;
 
-		if(!permanent) {
-		    /* Window Manager exits, stop protecting entities */
-		    trusted_uid = -1;
-		    wmpid = -1;
-		    _free(wmcmdname);
-		    _free(wmcmdargs);
-		    LOG("!!! Window Manager exited, stop protecting X11 entities\n");
+		if (wmccnt == 0) {
+		    LOG("!!! Window Manager exited\n");
+
+		    if(!permanent) {
+			/* Window Manager exits, stop protecting entities */
+			trusted_uid = -1;
+			wmpid = -1;
+			LOG("!!! Window Manager exited, stop protecting X11 entities\n");
+		    }
 		}
 	    }
 
@@ -1207,11 +1195,7 @@ ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 		    obj->wm = 1;
 		    wmpid = subj->pid;
 		    wmcid = rec->client->index;
-		    /* Do not care if strdup() fails here. */
-		    if (rec->client->clientIds->cmdname)
-			wmcmdname = strdup(rec->client->clientIds->cmdname);
-		    if (rec->client->clientIds->cmdargs)
-			wmcmdname = strdup(rec->client->clientIds->cmdargs);
+		    wmccnt++;
 
 		    INFO("Client #%d with pid %d is a window manager\n",
 			    rec->client->index, rec->client->clientIds->pid);
