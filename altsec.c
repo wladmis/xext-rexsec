@@ -699,6 +699,7 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	"X-Resource:"
 	"XFIXES:"
 	"XFree86-VidModeExtension:"
+	"XINERAMA:"
 	"XInputExtension:"
 	"XKEYBOARD:"
 	"XVideo:"
