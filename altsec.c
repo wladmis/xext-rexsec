@@ -1464,12 +1464,8 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	    obj->is_faked = 1;
 	}
     } else {
-	int is_permitted;
-
-	if (is_trusted_client(rec->client))
-	    is_permitted = 1;
-	else
-	    is_permitted = is_client_focused(rec->client);
+	int is_permitted =
+	    is_trusted_client(rec->client) || is_client_focused(rec->client);
 
 	while (pSel->selection != name
 	   || (obj->is_faked && is_permitted)
