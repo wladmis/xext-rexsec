@@ -72,8 +72,6 @@ pid_t wmpid = -1; /* contains the Window Manager pid */
 int wmcid = -1; /* contains the Window Manager cid */
 int wmccnt = 0; /* Number of WM clients */
 
-pid_t selection_owner = -1;
-
 DevPrivateKeyRec asec_client_key_rec;
 #define asec_client_key (&asec_client_key_rec)
 typedef struct {
@@ -1460,8 +1458,6 @@ ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	if (is_client_focused(rec->client)
 	 || is_trusted_client(rec->client)
 	 || rec->client == serverClient) {
-	    DEBUG("Selection: Set selection_owner to %d\n", selection_owner);
-	    selection_owner = subj->pid;
 	    obj->is_faked = 0;
 	} else {
 	    DEBUG("Selection: faked selection %d\n", subj->pid);
