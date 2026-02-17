@@ -1,3 +1,4 @@
+CC		?= cc
 GIT 		?= git
 PKGCONF 	:= $(shell pkg-config --cflags xorg-server xproto)
 XORGEXTDIR 	:= $(shell pkg-config --variable=moduledir xorg-server)/extensions
@@ -11,10 +12,10 @@ SOURCES := altsec.c Makefile README.rst
 all: altsec.so
 
 altsec.so: altsec.o
-	cc -o altsec.so -shared $(CFLAGS) $(EXTRA_CFLAGS) altsec.o
+	$(CC) -o altsec.so -shared $(CFLAGS) $(EXTRA_CFLAGS) altsec.o
 
 altsec.o: altsec.c version.h
-	cc -c altsec.c $(CFLAGS) $(EXTRA_CFLAGS)
+	$(CC) -c altsec.c $(CFLAGS) $(EXTRA_CFLAGS)
 
 VERSION: $(SOURCES)
 	@if ! $(GIT) describe --tags > $@; then \
