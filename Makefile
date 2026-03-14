@@ -7,15 +7,15 @@ EXTRA_CFLAGS += $(PKGCONF)
 EXTRA_CFLAGS += -fPIC -std=c99
 EXTRA_CFLAGS += -Wall -Werror
 
-SOURCES := altsec.c Makefile README.rst
+SOURCES := rexsec.c Makefile README.rst
 
-all: altsec.so
+all: rexsec.so
 
-altsec.so: altsec.o
-	$(CC) -o altsec.so -shared $(CFLAGS) $(EXTRA_CFLAGS) altsec.o
+rexsec.so: rexsec.o
+	$(CC) -o $@ -shared $(CFLAGS) $(EXTRA_CFLAGS) $<
 
-altsec.o: altsec.c version.h
-	$(CC) -c altsec.c $(CFLAGS) $(EXTRA_CFLAGS)
+rexsec.o: rexsec.c version.h
+	$(CC) -c rexsec.c $(CFLAGS) $(EXTRA_CFLAGS)
 
 VERSION: $(SOURCES)
 	@if ! $(GIT) describe --tags > $@; then \
@@ -31,20 +31,20 @@ version.h: VERSION
 		echo "#define MINORV $$2" >> $@ && \
 		echo "#define PATCHL $$3" >> $@
 
-xext-altsec-%.tar.gz: $(SOURCES) VERSION
+xext-rexsec-%.tar.gz: $(SOURCES) VERSION
 	@test "$$(cat VERSION)" = "$*"
 	tar -czf $@ $^
 
 tarball: VERSION
-	@$(MAKE) xext-altsec-$(shell cat VERSION).tar.gz
+	@$(MAKE) xext-rexsec-$(shell cat VERSION).tar.gz
 
-install: altsec.so
-	install -pD altsec.so $(DESTDIR)$(XORGEXTDIR)/altsec.so
+install: rexsec.so
+	install -pD rexsec.so $(DESTDIR)$(XORGEXTDIR)/rexsec.so
 
 clean:
-	-rm -f altsec.o VERSION version.h
+	-rm -f rexsec.o VERSION version.h
 
 distclean: clean
-	-rm altsec.so
+	-rm rexsec.so
 
-.PHONY: all clean distclean fix-path install tarball
+.PHONY: all clean distclean install tarball

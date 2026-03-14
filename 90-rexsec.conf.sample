@@ -1,7 +1,7 @@
 Section "Module"
-	Load "altsec"
+	Load "rexsec"
 
-	SubSection "altsec"
+	SubSection "rexsec"
 	    # A list of clients that should be considered trusted when
 	    # started after secured phase.
 	    Option "TrustedClients" "dmenu:nm-applet:xkill:xlockmore:xrandr:xscreensaver:xsetroot:/usr/lib64/misc/ssh-askpass:/usr/libexec/at-spi2-registryd:/usr/libexec/gsd-power:/usr/libexec/gsd-xsettings"

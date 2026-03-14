@@ -2,7 +2,7 @@ name: test build
 on:
   push:
     paths:
-      - altsec.c
+      - rexsec.c
       - Makefile
 
 jobs:
