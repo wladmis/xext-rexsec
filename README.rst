@@ -1,14 +1,12 @@
 ===========
-XEXT-ALTSEC
+XEXT-Rexsec
 ===========
 
-Xext-altsec or altsec or alternative X11 security module.
-
-Altsec (alternative X11 security module) is an implementation of X11
-client security isolation for X.org server and EWMH-compliant Window
-managers. It aims to be practical and not to be general-purpose, so it
-is not very flexible.  It is supposed to just work and requires a zero
-or a very little configuration.
+XEXT-Rexsec (reimplemented/revisited X11 security module) is an
+implementation of X11 client security isolation for X.org server and
+EWMH-compliant Window managers. It aims to be practical and not to be
+general-purpose, so it is not very flexible.  It is supposed to just
+work and requires a zero or a very little configuration.
 
 It aims to protect only the X11 resources of the clients and does not
 handle other entities like filesystem access, etc. So for more complete
@@ -26,13 +24,13 @@ DESIGN
 
 (A bunch of hacks and workaround).
 
-The idea of altsec is to have two types of X11 applications (clients in
+The idea of rexsec is to have two types of X11 applications (clients in
 terms of X11): trusted and confined. Trusted clients can do whatever
 they want, while confined clients are restricted to their own resources
 and a relatively safe set of operations, which are enough for modern
 applications to run.  It may sound like a classical XSecurity extension,
 but it is very different in details.  And these days, when this project
-is written, XSecurity is absolutely unusable. The rules altsec is using
+is written, XSecurity is absolutely unusable. The rules rexsec is using
 to mark clients as trusted or confined are described at `TRUSTED
 CLIENTS`_ section.
 
@@ -52,20 +50,20 @@ HOW IT WORKS
 This file provides a high level overview of how it works. To get more
 specifics, please read the source code.
 
-Originally altsec did X11 client separation based on their UIDs (user
-identifier, specifically *effective UID*), where clients with one UID
-could do almost anything with other clients with the same UID, but now
-it implements an even more strict mode (policy), where confined clients
-only can operate only with their own resources and have a limited
-read-only access to some other resources.
+Originally rexsec (named as xext-altsec) did X11 client separation based
+on their UIDs (user identifier, specifically *effective UID*), where
+clients with one UID could do almost anything with other clients with
+the same UID, but now it implements an even more strict mode (policy),
+where confined clients only can operate only with their own resources
+and have a limited read-only access to some other resources.
 
 All clients are divided into trusted and confined clients. See `TRUSTED
 CLIENTS`_.
 
-Altsec's lifetime modes are divided into several stages. When X starts,
-altsec runs in the *insecure mode*, all clients started in this mode are
+Rexsec's lifetime modes are divided into several stages. When X starts,
+rexsec runs in the *insecure mode*, all clients started in this mode are
 marked as *trusted*. This mode lasts until some Window Manager started.
-After that altsec switches to the *secure mode*, and all clients started
+After that rexsec switches to the *secure mode*, and all clients started
 in this mode are marked as *confined* by default.
 
 Take a look to the following ``.xinitrc`` example::
@@ -103,12 +101,12 @@ TRUSTED CLIENTS
 ---------------
 
 The *trusted* clients--like regular X11 clients--can do almost anything.
-Altsec marks a client as trusted in the following cases:
+Rexsec marks a client as trusted in the following cases:
 
 * the client was started during insecure mode;
 * the client is a Window Manager;
 * the client executable name was defined in the list of trusted clients
-  (see `CONFIGURATION`_) and there are no other conditions why altsec
+  (see `CONFIGURATION`_) and there are no other conditions why rexsec
   should mark it as confined (see below);
 * if ``strict mode`` is disabled (see `CONFIGURATION`_), and the client
   runs with the same EUID as the Window Manager's EUID (UID-based
@@ -129,7 +127,7 @@ CONFINED CLIENTS
 
 *Confined clients* have full access only to their own resources, i.e.
 windows, properties, etc. When a *confined client* creates a resource,
-the resource is marked by altsec as belonging to the client. The client
+the resource is marked by rexsec as belonging to the client. The client
 can modify and destroy its own resources, and cannot do this to others
 resources.
 
@@ -154,7 +152,7 @@ CASTING`_ for more information.
 CLIPBOARD PROTECTION
 --------------------
 
-Altsec protects both primary selection and clipboard. Only those
+Rexsec protects both primary selection and clipboard. Only those
 confined clients whose window is in focus at the moment can read and
 write to the clipboards. This is quite a simple technique but still it
 can protect from some abuses.
@@ -171,7 +169,7 @@ SELECTIONS HANDLING
 
 Not to be confused with clipboard selections, X11 selections is a
 general X11 mechanism for inter-client communication. There are two
-predefined selections in X11: primary and clipboard, altsec handles
+predefined selections in X11: primary and clipboard, rexsec handles
 those separately, please refer to `CLIPBOARD PROTECTION`_ for that.
 
 The rest of selections are just allowed to all clients: I don't know
@@ -184,7 +182,7 @@ properties, not via the selection itself (see `PROPERTIES HANDLING`_).
 PROPERTIES HANDLING
 -------------------
 
-With Altsec, the properties that are described by EWMH can be handled only
+With Rexsec, the properties that are described by EWMH can be handled only
 by a Window Manager or the window owner client, depending on the property.
 To get more information please refer to the source code.
 
@@ -201,9 +199,9 @@ Any other properties are considered to be for selection usage (see
 SCREEN SHARING AND SCREEN CASTING
 ---------------------------------
 
-Altsec makes client resources non-transparent for other clients, but
+Rexsec makes client resources non-transparent for other clients, but
 sometimes it can be a desired behavior, for example for a screen sharing
-use case. For that, altsec provides an option that is called SpyMode
+use case. For that, rexsec provides an option that is called SpyMode
 (disabled by default, see `CONFIGURATION`_) that temporarily gives a
 client read-only access to all resources. If this option is enabled, you
 can give the focused client that ability by pressing `CTRL-ALT-=`, and
@@ -226,15 +224,15 @@ CONFIGURATION
 =============
 
 The module **will not be** loaded automatically, so you should create a
-config file and at least put a ``Load "altsec"`` directive to load it.
+config file and at least put a ``Load "rexsec"`` directive to load it.
 
-Here is an example of 90-altsec.conf file, which should reside in
+Here is an example of 90-rexsec.conf file, which should reside in
 /etc/X11/xorg.conf.d/::
 
     Section "Module"
-        Load "altsec"
+        Load "rexsec"
 
-        SubSection "altsec"
+        SubSection "rexsec"
             # A list of clients that should be considered trusted when
             # started after secured phase.
             Option "TrustedClients" "dmenu:nm-applet:xkill:xlockmore:xrandr:xscreensaver:xsetroot:/usr/lib64/misc/ssh-askpass:/usr/libexec/at-spi2-registryd:/usr/libexec/gsd-power:/usr/libexec/gsd-xsettings"
@@ -248,7 +246,7 @@ All available options are described in the next subsection.
 To ensure that the module is loading and running check the following
 line in the Xorg.${DISPLAY#:}.log::
 
-    Initializing extension ALTSecurity
+    Initializing extension RexSecurity
 
 AVAILABLE OPTIONS
 -----------------
@@ -261,7 +259,7 @@ OPTION           DESCRIPTION                                             DEFAULT
 AllowedExts      A colon-separated list of extra allowed extensions      *None*
                  beyond defaults.
 
-                 By default altsec allows to use a lot of relatively
+                 By default rexsec allows to use a lot of relatively
                  safe extensions for all the clients to make modern
                  applications and toolkits work, but still not abuse the
                  rest of X11.
@@ -270,22 +268,22 @@ AllowedExts      A colon-separated list of extra allowed extensions      *None*
 
 LogLevel         Log level: 0: default, 1: INFO, 2: DEBUG, 3: TRACE      ``0``
 
-Permanent        If false, altsec stops to work until a new WM starts.   ``True``
+Permanent        If false, rexsec stops to work until a new WM starts.   ``True``
 
-                 By default, altsec starts working in the secure mode
+                 By default, rexsec starts working in the secure mode
                  after a WM is started, and then works forever until an
                  X11 session ends.  In case if the WM was stopped or
                  crashed, there is no way to start a new WM again within
                  the current session.
 
                  You can disable this behavior, then in case the WM was
-                 stopped or crashed altsec will allow to start a new WM.
+                 stopped or crashed rexsec will allow to start a new WM.
 
 SharedProps      A colon-separated list of shared properties.            *None*
 
                  By default, only clients who own the property and
                  trusted clients can manipulate it. Shared properties
-                 are not handled by altsec, and any clients (trusted and
+                 are not handled by rexsec, and any clients (trusted and
                  confined) can manipulate them.
 
                  Check ``Xorg.${DISPLAY#:}.log`` if you really need to
@@ -303,7 +301,7 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
                  By default, only clients that started at insecure phase
                  are marked as trusted. In the real usage you might need
                  to add some clients here. Please note that it is on you
-                 to ensure that confined clients can not start trusted
+                 to ensure that confined clients cannot start trusted
                  clients as their children to abuse. The easiest way to
                  achieve this is to run all confined clients under user
                  namespace, i.e. confined via Flatpak, or firejail, etc.
@@ -318,7 +316,7 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
                  malicious program with the same name. Every symlink is
                  also dereferenced when reading the configuration and
                  before matching.  If an executable does not start with
-                 a *slash symbol* ``/``, then altsec looks up it in the
+                 a *slash symbol* ``/``, then rexsec looks up it in the
                  ``X`` server process ``$PATH``. If it does not reside
                  in the ``$PATH``, you should provide a full pathname to
                  the executable.
@@ -347,7 +345,7 @@ SpyMode          When enabled, allow to temporarily grant a client an    ``False
 NOTE
 ====
 
-AltSec **does not** handle operating system process execution tree, in
+Rexsec **does not** handle operating system process execution tree, in
 case of usage of trusted client list you have to make sure by yourself
 that confined clients cannot run clients from the trusted client list.
 The easiest way to achieve this is to run all confined client under user

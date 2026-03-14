@@ -46,10 +46,10 @@ enum {
     LL_TRACE
 };
 
-#define ALTSEC "ALTSecurity"
-#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, ALTSEC " (debug): " __VA_ARGS__)
-#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, ALTSEC " (info): " __VA_ARGS__)
-#define LOG(...) LogMessage(X_INFO, ALTSEC ": " __VA_ARGS__)
+#define REXSEC "REX11Security"
+#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__)
+#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__)
+#define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
 int spy_mode = 0;
@@ -64,10 +64,10 @@ int suid_is_trusted = 1;
 int sgid_is_trusted = 1;
 #endif /* __linux__ */
 
-/* A Window Manager is trusted client that by altsec design is allowed
+/* A Window Manager is trusted client that by rexsec design is allowed
  * almost anything Xorg can provide. Altsec keeps its pid because WM can create
  * different X11 clients, for example in the case of reconfiguration. To ensure
- * there is no a pid collision altsec also keep WM command name and arguments. */
+ * there is no a pid collision rexsec also keep WM command name and arguments. */
 pid_t wmpid = -1; /* contains the Window Manager pid */
 int wmcid = -1; /* contains the Window Manager cid */
 int wmccnt = 0; /* Number of WM clients */
@@ -144,29 +144,29 @@ int permanent = 1;
 int strict = 1;
 
 /* Similar from X11 Security extension */
-const Mask ALTSecResourceMask =
+const Mask REXSecResourceMask =
 DixGetAttrAccess | DixReceiveAccess | DixListPropAccess |
 DixGetPropAccess | DixListAccess;
 
-const Mask ALTSecSecurityWindowExtraMask = DixRemoveAccess;
-const Mask ALTSecSecurityRootWindowExtraMask =
+const Mask REXSecSecurityWindowExtraMask = DixRemoveAccess;
+const Mask REXSecSecurityRootWindowExtraMask =
 DixReceiveAccess | DixSendAccess | DixAddAccess | DixRemoveAccess;
-const Mask ALTSecClientMask = DixGetAttrAccess;
+const Mask REXSecClientMask = DixGetAttrAccess;
 
-static void altsecModuleInit(INITARGS);
-void altsecExtensionInit(void);
+static void rexsecModuleInit(INITARGS);
+void rexsecExtensionInit(void);
 
-static MODULESETUPPROTO(altsecSetup);
+static MODULESETUPPROTO(rexsecSetup);
 
-ExtensionModule altsecExt =
+ExtensionModule rexsecExt =
 {
-    altsecModuleInit,
-    "ALTSecurity",
+    rexsecModuleInit,
+    "REX11Security",
     NULL
 };
 
-static XF86ModuleVersionInfo altsecVerRec = {
-    "altsec",
+static XF86ModuleVersionInfo rexsecVerRec = {
+    "rexsec",
     "Wladmis",
     MODINFOSTRING1,
     MODINFOSTRING2,
@@ -189,9 +189,9 @@ typedef enum {
     OPTION_TRUSTSUID,
     OPTION_SPYMODE,
     THE_END_OF_OPTIONS
-} ALTSecOpts;
+} REXSecOpts;
 
-static OptionInfoRec ALTSecOptions[] = {
+static OptionInfoRec REXSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
@@ -206,7 +206,7 @@ static OptionInfoRec ALTSecOptions[] = {
     {-1,			NULL,			OPTV_NONE,	{0},	FALSE}
 };
 
-_X_EXPORT XF86ModuleData altsecModuleData = { &altsecVerRec, altsecSetup, NULL };
+_X_EXPORT XF86ModuleData rexsecModuleData = { &rexsecVerRec, rexsecSetup, NULL };
 
 static void
 free_str_list(char **lst)
@@ -234,7 +234,7 @@ make_str_list(const char *str)
     dstr = strdup(str);
 
     if (dstr == NULL)
-	FatalError(ALTSEC " make_str_list: could not allocate memory for dstr: %s",
+	FatalError(REXSEC " make_str_list: could not allocate memory for dstr: %s",
 		   strerror(errno));
 
     elem = strtok_r(dstr, ":", &saveptr);
@@ -672,7 +672,7 @@ construct_trusted_clients_list(const char *str)
 #endif /* __linux__ */
 
 static void *
-altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((unused)) int *errmaj, int *errmin)
+rexsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((unused)) int *errmaj, int *errmin)
 {
     void *ret = (void *) 1;
 
@@ -707,27 +707,27 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     char *ext_str = strdup(allowed_ext);
 
     if (ext_str == NULL)
-	FatalError("altsecSetup: could not allocate memory for ext_str: %s",
+	FatalError("rexsecSetup: could not allocate memory for ext_str: %s",
 		   strerror(errno));
 
-    xf86ProcessOptions(-1, opts, ALTSecOptions);
+    xf86ProcessOptions(-1, opts, REXSecOptions);
 
-    xf86GetOptValInteger(ALTSecOptions, OPTION_LOGLEVEL, &loglevel);
-    xf86GetOptValBool(ALTSecOptions, OPTION_PERMANENT, &permanent);
-    xf86GetOptValBool(ALTSecOptions, OPTION_STRICT, &strict);
-    xf86GetOptValBool(ALTSecOptions, OPTION_SPYMODE, &spy_mode);
+    xf86GetOptValInteger(REXSecOptions, OPTION_LOGLEVEL, &loglevel);
+    xf86GetOptValBool(REXSecOptions, OPTION_PERMANENT, &permanent);
+    xf86GetOptValBool(REXSecOptions, OPTION_STRICT, &strict);
+    xf86GetOptValBool(REXSecOptions, OPTION_SPYMODE, &spy_mode);
 #if __linux__
-    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSGID, &sgid_is_trusted);
-    xf86GetOptValBool(ALTSecOptions, OPTION_TRUSTSUID, &suid_is_trusted);
+    xf86GetOptValBool(REXSecOptions, OPTION_TRUSTSGID, &sgid_is_trusted);
+    xf86GetOptValBool(REXSecOptions, OPTION_TRUSTSUID, &suid_is_trusted);
 #endif /* __linux__ */
 
-    const char *opt_exts = xf86GetOptValString(ALTSecOptions, OPTION_ALLOWED_EXTS);
+    const char *opt_exts = xf86GetOptValString(REXSecOptions, OPTION_ALLOWED_EXTS);
 
     if (opt_exts != NULL) {
 	int ext_str_len = strlen(allowed_ext) + strlen(opt_exts) + 1;
 	/* I don't care about saving the pointer here, we will exit in case of fail anyway. */
 	if ((ext_str = reallocarray(ext_str, ext_str_len, sizeof(char))) == NULL)
-	    FatalError(ALTSEC ": Could not allocate memory for extension list.\n");
+	    FatalError(REXSEC ": Could not allocate memory for extension list.\n");
 	strcat(ext_str, opt_exts);
     }
 
@@ -739,12 +739,12 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	goto exit;
     }
 
-    const char *shared_props = xf86GetOptValString(ALTSecOptions, OPTION_SHARED_PROPS);
+    const char *shared_props = xf86GetOptValString(REXSecOptions, OPTION_SHARED_PROPS);
     if (shared_props != NULL)
 	shared_props_list = make_str_list(shared_props);
 
 #if __linux__
-    const char *trusted_clients = xf86GetOptValString(ALTSecOptions, OPTION_TRUSTEDCLIENTS);
+    const char *trusted_clients = xf86GetOptValString(REXSecOptions, OPTION_TRUSTEDCLIENTS);
     if (trusted_clients != NULL)
 	construct_trusted_clients_list(trusted_clients);
 #endif /* __linux__ */
@@ -754,9 +754,9 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     /* Assume that you cannot run Xorg in non-root user namespace. */
     if (stat("/proc/self/ns/user", &st) != -1) {
 	root_userns = st.st_ino;
-	DEBUG("altsecSetup: root namespace value is %lu\n", root_userns);
+	DEBUG("rexsecSetup: root namespace value is %lu\n", root_userns);
     } else {
-	LOG("altsecSetup: could not obtain a value of root namespace: %s\n",
+	LOG("rexsecSetup: could not obtain a value of root namespace: %s\n",
 		strerror(errno));
     }
 
@@ -764,11 +764,11 @@ altsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 	rootdir = st.st_ino;
 	rootdir_major = major(st.st_dev);
 	rootdir_minor = minor(st.st_dev);
-	DEBUG("altsecSetup: "
+	DEBUG("rexsecSetup: "
 	      "rootdir inode value is %lu (%u,%u)\n",
 		rootdir, rootdir_major, rootdir_minor);
     } else {
-	LOG("altsecSetup: could not obtain values of rootdir: %s\n",
+	LOG("rexsecSetup: could not obtain values of rootdir: %s\n",
 		strerror(errno));
     }
 #endif /* __linux__ */
@@ -778,14 +778,14 @@ exit:
 	_free(add_ext_list);
 	_free(shared_props_list);
     } else {
-	LoadExtensionList(&altsecExt, 1 , FALSE);
+	LoadExtensionList(&rexsecExt, 1 , FALSE);
     }
 
     return ret;
 }
 
 static void
-altsecModuleInit(INITARGS)
+rexsecModuleInit(INITARGS)
 {
     static char once = 0;
 
@@ -793,22 +793,22 @@ altsecModuleInit(INITARGS)
 	once++;
 
 	if (!dixRegisterPrivateKey(asec_client_key, PRIVATE_CLIENT, sizeof(AClientPrivRec))) {
-	    FatalError("ALTSecurity: could not register private key asec_client_key\n");
+	    FatalError("REX11Security: could not register private key asec_client_key\n");
 	}
 
 	if (!dixRegisterPrivateKey(asec_window_key, PRIVATE_WINDOW, sizeof(APrivateRec))) {
-	    FatalError("ALTSecurity: could not register private key asec_window_key\n");
+	    FatalError("REX11Security: could not register private key asec_window_key\n");
 	}
 
 	if (!dixRegisterPrivateKey(asec_prop_key, PRIVATE_PROPERTY, sizeof(APrivateRec))) {
-	    FatalError("ALTSecurity: could not register private key asec_prop_key\n");
+	    FatalError("REX11Security: could not register private key asec_prop_key\n");
 	}
 
 	if (!dixRegisterPrivateKey(asec_sel_key, PRIVATE_SELECTION, sizeof(APrivateRec))) {
-	    FatalError("ALTSecurity: could not register private key asec_sel_key\n");
+	    FatalError("REX11Security: could not register private key asec_sel_key\n");
 	}
 
-	altsecExtensionInit();
+	rexsecExtensionInit();
     }
 }
 
@@ -875,7 +875,7 @@ is_client_focused(ClientPtr client)
 }
 
 static void
-ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     NewClientInfoRec *pci = calldata;
     AClientPrivPtr pClientPriv;
@@ -990,7 +990,7 @@ ALTSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 }
 
 void
-ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceExtAccessRec *rec = calldata;
 
@@ -1013,14 +1013,14 @@ ALTSecExtension(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
  * Mostly based on SecurityResource() of Xext/security.c of xorg-server
  */
 void
-ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceResourceAccessRec *rec = calldata;
     AClientPrivPtr subj, obj = NULL;
     XID cid = CLIENT_ID(rec->id);
     /* Allow to set properties and send events so make clipboard work,
-     * and let ALTSecProperty handles this */
-    Mask allowed = ALTSecResourceMask | DixSetPropAccess;
+     * and let REXSecProperty handles this */
+    Mask allowed = REXSecResourceMask | DixSetPropAccess;
 
     if (rec->client == serverClient)
 	return;
@@ -1034,7 +1034,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	return;
 
     if (rec->rtype == RT_WINDOW)
-	allowed |= ALTSecSecurityWindowExtraMask;
+	allowed |= REXSecSecurityWindowExtraMask;
 
     /* This follows DixWriteAccess for properties,
      * thus allowing clipboard exchange to work. */
@@ -1055,7 +1055,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
     if (cid == 0) {
 	if (rec->rtype & RC_DRAWABLE)
 	    /* additional operations allowed on root windows */
-	    allowed |= ALTSecSecurityRootWindowExtraMask;
+	    allowed |= REXSecSecurityRootWindowExtraMask;
 
 	else if (rec->rtype == RT_COLORMAP)
 	    /* allow access to default colormaps */
@@ -1095,7 +1095,7 @@ ALTSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 }
 
 void
-ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceServerAccessRec *rec = calldata;
     AClientPrivPtr subj = dixLookupPrivate(&rec->client->devPrivates, asec_client_key);
@@ -1111,7 +1111,7 @@ ALTServerAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 }
 
 void
-ALTSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     static const char *AppWinProperties[] = {
 	"GDK_VISUALS",
@@ -1294,7 +1294,7 @@ deny:
 
 /* based on xorg-server Xext/security.c */
 void
-ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceSendAccessRec *rec = calldata;
     AClientPrivPtr subj;
@@ -1352,7 +1352,7 @@ ALTSecSend(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unuse
 
 /* based on xorg-server Xext/security.c */
 void
-ALTSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecReceive(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceReceiveAccessRec *rec = calldata;
 
@@ -1411,7 +1411,7 @@ deny:
 }
 
 void
-ALTSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceSelectionAccessRec *rec = calldata;
 
@@ -1521,10 +1521,10 @@ deny:
 }
 
 void
-ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
     XaceClientAccessRec *rec = calldata;
-    Mask allowed = ALTSecClientMask;
+    Mask allowed = REXSecClientMask;
 
     if (is_trusted_client(rec->client))
 	return;
@@ -1545,7 +1545,7 @@ ALTSecClient(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unu
 }
 
 void
-ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
+REXSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((unused)) void *userdata, void *calldata)
 {
 #define EQUAL_KC 0x0015
     if (!spy_mode)
@@ -1596,44 +1596,44 @@ ALTSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
 }
 
 void
-altsecExtensionInit(void)
+rexsecExtensionInit(void)
 {
-    if (AddCallback(&ClientStateCallback, ALTSecClientState, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register client state callback\n");
+    if (AddCallback(&ClientStateCallback, REXSecClientState, NULL) != TRUE)
+	FatalError("REX11Security: could not register client state callback\n");
 
-    if (XaceRegisterCallback(XACE_EXT_DISPATCH, ALTSecExtension, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register extension dispatch callback\n");
+    if (XaceRegisterCallback(XACE_EXT_DISPATCH, REXSecExtension, NULL) != TRUE)
+	FatalError("REX11Security: could not register extension dispatch callback\n");
 
-    if (XaceRegisterCallback(XACE_RESOURCE_ACCESS, ALTSecResourceAccess, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register resource access callback\n");
+    if (XaceRegisterCallback(XACE_RESOURCE_ACCESS, REXSecResourceAccess, NULL) != TRUE)
+	FatalError("REX11Security: could not register resource access callback\n");
 
-    if (XaceRegisterCallback(XACE_CLIENT_ACCESS, ALTSecClient, NULL) != TRUE) {
-	FatalError("ALTSecurity: could not register client callback\n");
+    if (XaceRegisterCallback(XACE_CLIENT_ACCESS, REXSecClient, NULL) != TRUE) {
+	FatalError("REX11Security: could not register client callback\n");
     }
 
-    if (XaceRegisterCallback(XACE_PROPERTY_ACCESS, ALTSecProperty, NULL) != TRUE) {
-	FatalError("ALTSecurity: could not register property callback\n");
+    if (XaceRegisterCallback(XACE_PROPERTY_ACCESS, REXSecProperty, NULL) != TRUE) {
+	FatalError("REX11Security: could not register property callback\n");
     }
 
-    if (XaceRegisterCallback(XACE_SEND_ACCESS, ALTSecSend, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register send callback\n");
+    if (XaceRegisterCallback(XACE_SEND_ACCESS, REXSecSend, NULL) != TRUE)
+	FatalError("REX11Security: could not register send callback\n");
 
-    if (XaceRegisterCallback(XACE_RECEIVE_ACCESS, ALTSecReceive, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register receive callback\n");
+    if (XaceRegisterCallback(XACE_RECEIVE_ACCESS, REXSecReceive, NULL) != TRUE)
+	FatalError("REX11Security: could not register receive callback\n");
 
-    if (XaceRegisterCallback(XACE_EXT_ACCESS, ALTSecExtension, NULL) != TRUE)
-	FatalError("ALTSecurity: could not register extension dispatch callback\n");
+    if (XaceRegisterCallback(XACE_EXT_ACCESS, REXSecExtension, NULL) != TRUE)
+	FatalError("REX11Security: could not register extension dispatch callback\n");
 
-    if (XaceRegisterCallback(XACE_SELECTION_ACCESS, ALTSecSelection, NULL) != TRUE) {
-	FatalError("ALTSecurity: could not register selection callback\n");
+    if (XaceRegisterCallback(XACE_SELECTION_ACCESS, REXSecSelection, NULL) != TRUE) {
+	FatalError("REX11Security: could not register selection callback\n");
     }
 
-    if (XaceRegisterCallback(XACE_SERVER_ACCESS, ALTServerAccess, NULL) != TRUE) {
-	FatalError("ALTSecurity: could not register server access callback\n");
+    if (XaceRegisterCallback(XACE_SERVER_ACCESS, REXSecServerAccess, NULL) != TRUE) {
+	FatalError("REX11Security: could not register server access callback\n");
     }
 
-    if (XaceRegisterCallback(XACE_KEY_AVAIL, ALTSecKeyAvailable, NULL) != TRUE) {
-	FatalError("ALTSecurity: could not register key available callback\n");
+    if (XaceRegisterCallback(XACE_KEY_AVAIL, REXSecKeyAvailable, NULL) != TRUE) {
+	FatalError("REX11Security: could not register key available callback\n");
     }
 }
 
