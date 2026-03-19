@@ -1499,10 +1499,10 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
-    /* Only onwer or trusted client can destroy the selection. */
+    /* Only owner or trusted client can destroy the selection. */
     if (rec->access_mode & DixDestroyAccess) {
 	if (!is_trusted_client(rec->client)
-	 || !check_ownership(subj, obj))
+	 && !check_ownership(subj, obj))
 	    goto deny;
     }
 
