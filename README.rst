@@ -329,7 +329,7 @@ TrustSUID        Treat set-uid processes as trusted. Disable it if you   ``True`
 
                  Linux-only.
 
-TrustSGID        The same as TrustSGID, but for set-gid application.     ``True``
+TrustSGID        The same as TrustSUID, but for set-gid application.     ``True``
 
                  Linux-only.
 
