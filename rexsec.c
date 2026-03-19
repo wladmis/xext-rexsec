@@ -7,7 +7,7 @@
 
 #include "version.h"
 
-#define _free(x) if (x) { free(x); x = NULL; }
+#define _free(x) do { if (x) { free(x); x = NULL; } } while (0)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
@@ -47,8 +47,8 @@ enum {
 };
 
 #define REXSEC "REX11Security"
-#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__)
-#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__)
+#define DEBUG(...) do { if (loglevel >= LL_DEBUG) { LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__); } } while (0)
+#define INFO(...) do { if (loglevel >= LL_INFO) { LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__); } } while (0)
 #define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
