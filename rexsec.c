@@ -1644,4 +1644,4 @@ rexsecExtensionInit(void)
     }
 }
 
-/* vim:set shiftwidth=4 noexpandtab: */
+/* vim:set tabstop=8 shiftwidth=4 noexpandtab: */
