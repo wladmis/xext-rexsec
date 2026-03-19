@@ -398,16 +398,18 @@ is_proc_client_trusted(AClientPrivPtr client)
 	return 1;
 
     /* Check against trusted clients list. */
-    for (asec_inode **tc = trusted_clients_list; *tc; tc++) {
-	DEBUG("is_proc_client_trusted: compare client #%d (%s) inodes (%lu vs %lu) and devices ((%u,%u) vs (%u,%u)\n",
-		client->cid, client->cmdname,
-		client->ino, (*tc)->ino,
-		client->major, client->minor,
-		(*tc)->major, (*tc)->minor);
-	if (client->ino == (*tc)->ino
-	 && client->minor == (*tc)->minor
-	 && client->major == (*tc)->major)
-	    return 1;
+    if (trusted_clients_list) {
+	for (asec_inode **tc = trusted_clients_list; *tc; tc++) {
+	    DEBUG("is_proc_client_trusted: compare client #%d (%s) inodes (%lu vs %lu) and devices ((%u,%u) vs (%u,%u)\n",
+		    client->cid, client->cmdname,
+		    client->ino, (*tc)->ino,
+		    client->major, client->minor,
+		    (*tc)->major, (*tc)->minor);
+	    if (client->ino == (*tc)->ino
+		    && client->minor == (*tc)->minor
+		    && client->major == (*tc)->major)
+		return 1;
+	}
     }
 #endif /* __linux__ */
 
@@ -476,7 +478,7 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
     uid_t id, eid, savedid, fsid;
     FILE *status;
     char *line = NULL;
-    size_t size;
+    size_t size = 0;
     int parsed = 0;
     if ((status = fopen(path, "r")) != NULL) {
 	while (getline(&line, &size, status) != -1
@@ -486,7 +488,7 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 		continue;
 
 	    if (sscanf(line, "%ms %u %u %u %u",
-			&id_str, &id, &eid, &savedid, &fsid) > 0) {
+			&id_str, &id, &eid, &savedid, &fsid) == 5) {
 		if (id != eid) {
 		    if (strcmp(id_str, uid_str) == 0) {
 			client->is_suid = 1;
@@ -505,6 +507,7 @@ fill_client_stats(AClientPrivPtr client, pid_t pid)
 	}
 
 	_free(line);
+	fclose(status);
     } else {
 	LOG("fill_client_stats: could not open %s: %s\n", path, strerror(errno));
     }
@@ -583,6 +586,7 @@ construct_trusted_clients_list(const char *str)
 		strerror(errno));
 
     char **path_lst = make_str_list(path_env);
+    free(path_env);
     char path[PATH_MAX];
 
     char **tmp = make_str_list(str);
@@ -630,8 +634,8 @@ construct_trusted_clients_list(const char *str)
 	    if ((*path_iter)[len - 1] == '/')
 		len--;
 
-	    int path_len;
-	    if (unlikely((path_len = snprintf(path, sizeof(path), "%.*s/%s", len, *path_iter, *iter) >= sizeof(path)))) {
+	    int path_len = snprintf(path, sizeof(path), "%.*s/%s", len, *path_iter, *iter);
+	    if (unlikely(path_len >= sizeof(path))) {
 		LOG("construct_trusted_clients_list: path \"%s...\" is longer (%d) than expected, please report bug\n"
 		    "construct_trusted_clients_list: could not add %s to TrustedClients\n",
 		    path, path_len, *iter);
@@ -864,7 +868,6 @@ is_client_focused(ClientPtr client)
     if ((fkbd = get_focused_client()) == NULL)
 	return 0;
 
-    fkbd = wClient(inputInfo.keyboard->focus->win);
     fc = dixLookupPrivate(&fkbd->devPrivates, asec_client_key);
     /* If focused window does not belong to client requested the selection,
      * deny */
@@ -1089,7 +1092,11 @@ REXSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
 	rec->client->index, subj->cmdname, subj->uid, subj->pid,
 	(unsigned long)rec->access_mode, (unsigned long)rec->id,
 	(unsigned long)rec->rtype,
-	cid, obj->cmdname, obj->uid, obj->pid, SecurityLookupRequestName(rec->client));
+	cid,
+	obj ? obj->cmdname : NULL,
+	obj ? obj->uid : -1,
+	obj ? obj->pid : -1,
+	SecurityLookupRequestName(rec->client));
 
     rec->status = BadAccess;
 }
@@ -1234,7 +1241,7 @@ REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
 	    obj->pid = subj->pid;
 	    obj->uid = subj->uid;
 	    obj->cid = subj->cid;
-	    obj->ts = obj->ts;
+	    obj->ts = subj->ts;
 	}
 
 	if (check_ownership(subj, obj)
