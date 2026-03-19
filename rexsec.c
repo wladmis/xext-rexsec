@@ -247,6 +247,9 @@ make_str_list(const char *str)
     num = 0;
     size = 4;
     lst = calloc(size, sizeof(*lst));
+    if (lst == NULL)
+	FatalError("make_str_list: could not allocate memory for lst: %s",
+		strerror(errno));
 
     do {
 	lst[num] = strdup(elem);
