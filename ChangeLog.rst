@@ -14,4 +14,4 @@ Bug fix release
 0.3.0 -- 2026-03-17
 ===================
 
-First public releases.
+First public release.
