@@ -2,6 +2,15 @@
 ChangeLog
 =========
 
+0.3.2 -- 2026-03-21
+===================
+
+Bug fix release
+---------------
+
+* Fix condition logic in selection handling.
+* Fix minor issues and NULL pointer dereference.
+
 0.3.1 -- 2026-03-20
 ===================
 
