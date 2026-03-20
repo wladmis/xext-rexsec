@@ -4,9 +4,9 @@ XEXT-Rexsec
 
 XEXT-Rexsec (reimplemented/revisited X11 security module) is an
 implementation of X11 client security isolation for X.org server and
-EWMH-compliant Window managers. It aims to be practical and not to be
+EWMH-compliant Window managers. It aims to be practical and not
 general-purpose, so it is not very flexible.  It is supposed to just
-work and requires a zero or a very little configuration.
+work and requires zero or very little configuration.
 
 It aims to protect only the X11 resources of the clients and does not
 handle other entities like filesystem access, etc. So for more complete
@@ -22,7 +22,7 @@ INSTALL`_ and `CONFIGURATION`_ sections.
 DESIGN
 ======
 
-(A bunch of hacks and workaround).
+(A bunch of hacks and workarounds).
 
 The idea of rexsec is to have two types of X11 applications (clients in
 terms of X11): trusted and confined. Trusted clients can do whatever
@@ -54,8 +54,8 @@ Originally rexsec (named as xext-altsec) did X11 client separation based
 on their UIDs (user identifier, specifically *effective UID*), where
 clients with one UID could do almost anything with other clients with
 the same UID, but now it implements an even more strict mode (policy),
-where confined clients only can operate only with their own resources
-and have a limited read-only access to some other resources.
+where confined clients can operate only with their own resources and
+have a limited read-only access to some other resources.
 
 All clients are divided into trusted and confined clients. See `TRUSTED
 CLIENTS`_.
@@ -66,7 +66,7 @@ marked as *trusted*. This mode lasts until some Window Manager started.
 After that rexsec switches to the *secure mode*, and all clients started
 in this mode are marked as *confined* by default.
 
-Take a look to the following ``.xinitrc`` example::
+Take a look at the following ``.xinitrc`` example::
 
     #/bin/sh
 
@@ -89,7 +89,7 @@ It **does not** make X11 completely secure or X11 clients fully isolated!
 It only makes them less transparent.
 
 For now there is no way to temporarily allow confined clients to take a
-screenshot or record a screen or do any other staff that only trusted
+screenshot or record a screen or do any other stuff that only trusted
 clients can do.
 
 It is still in an **alpha** state, but nevertheless I use it every day,
@@ -143,7 +143,7 @@ windows size, hints, etc.
 extensions, but they can only get some non-sensitive information like
 screen size (assume that it is not a secret), and cannot change X11
 behavior or properties. No, *confined clients* **cannot** keylog user
-input with help of XInputExtension.
+input with the help of XInputExtension.
 
 There are also cases that are handled separately: refer to `CLIPBOARD
 PROTECTION`_, `SELECTIONS HANDLING`_ and `SCREEN SHARING AND SCREEN
@@ -172,12 +172,12 @@ general X11 mechanism for inter-client communication. There are two
 predefined selections in X11: primary and clipboard, rexsec handles
 those separately, please refer to `CLIPBOARD PROTECTION`_ for that.
 
-The rest of selections are just allowed to all clients: I don't know
-that to handle it properly, but on the other hand handling it wrong
-could break many things, and I do not see any serious threats in
-allowing them (I haven't meant to write a completely secure solution
-anyway), given that the actual clients communication is done via
-properties, not via the selection itself (see `PROPERTIES HANDLING`_).
+The rest of selections are just allowed to all clients: I don't know how
+to handle it properly, but on the other hand handling it wrong could
+break many things, and I do not see any serious threats in allowing them
+(I haven't meant to write a completely secure solution anyway), given
+that the actual clients communication is done via properties, not via
+the selection itself (see `PROPERTIES HANDLING`_).
 
 PROPERTIES HANDLING
 -------------------
@@ -243,7 +243,7 @@ Here is an example of 90-rexsec.conf file, which should reside in
 
 All available options are described in the next subsection.
 
-To ensure that the module is loading and running check the following
+To ensure that the module is loaded and running check the following
 line in the Xorg.${DISPLAY#:}.log::
 
     Initializing extension RexSecurity
@@ -268,7 +268,7 @@ AllowedExts      A colon-separated list of extra allowed extensions      *None*
 
 LogLevel         Log level: 0: default, 1: INFO, 2: DEBUG, 3: TRACE      ``0``
 
-Permanent        If false, rexsec stops to work until a new WM starts.   ``True``
+Permanent        If false, rexsec stops working until a new WM starts.   ``True``
 
                  By default, rexsec starts working in the secure mode
                  after a WM is started, and then works forever until an
@@ -292,7 +292,7 @@ SharedProps      A colon-separated list of shared properties.            *None*
 Strict           If false, a UID-based separation is used instead of     ``True``
                  client-based.
 
-                 This is deprecated, option and will be deleted in the
+                 This is deprecated option and will be deleted in the
                  future (i.e., it will be always ``True``).
 
 TrustedClients   A colon-separated list of executables whose clients     *None*
@@ -316,7 +316,7 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
                  malicious program with the same name. Every symlink is
                  also dereferenced when reading the configuration and
                  before matching.  If an executable does not start with
-                 a *slash symbol* ``/``, then rexsec looks up it in the
+                 a *slash symbol* ``/``, then rexsec looks it up in the
                  ``X`` server process ``$PATH``. If it does not reside
                  in the ``$PATH``, you should provide a full pathname to
                  the executable.
@@ -333,7 +333,7 @@ TrustSGID        The same as TrustSUID, but for set-gid application.     ``True`
 
                  Linux-only.
 
-SpyMode          When enabled, allow to temporarily grant a client an    ``False``
+SpyMode          When enabled, allow temporarily granting a client an    ``False``
                  ability to read other clients properties (but not to
                  change them) via following keypress combination:
                  ``Control-Alt-Equal (=)``. To revoke the ability, use
@@ -348,9 +348,9 @@ NOTE
 Rexsec **does not** handle operating system process execution tree, in
 case of usage of trusted client list you have to make sure by yourself
 that confined clients cannot run clients from the trusted client list.
-The easiest way to achieve this is to run all confined client under user
-namespace confinement (either via firejail, Flatpak, etc) or restrict
-executables they can run with AppArmor/SELinux for example.
+The easiest way to achieve this is to run all confined clients under
+user namespace confinement (either via firejail, Flatpak, etc) or
+restrict executables they can run with AppArmor/SELinux for example.
 
 PERFORMANCE IMPACT
 ==================
@@ -370,7 +370,7 @@ to allow screenshots or screencasts in certain conditions for confined
 clients (which is necessary for online video calls or streaming, for
 example), or system tray handling.
 
-Beside these, only code cleanup, refactoring, bug fixes and resolving
+Besides these, only code cleanup, refactoring, bug fixes and resolving
 runtime issues with different WMs and workflows are expected.
 
 BUGS
