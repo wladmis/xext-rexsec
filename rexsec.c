@@ -7,7 +7,7 @@
 
 #include "version.h"
 
-#define _free(x) if (x) { free(x); x = NULL; }
+#define _free(x) do { if (x) { free(x); x = NULL; } } while (0)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
@@ -47,8 +47,8 @@ enum {
 };
 
 #define REXSEC "REX11Security"
-#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__)
-#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__)
+#define DEBUG(...) do { if (loglevel >= LL_DEBUG) { LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__); } } while (0)
+#define INFO(...) do { if (loglevel >= LL_INFO) { LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__); } } while (0)
 #define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
@@ -247,6 +247,9 @@ make_str_list(const char *str)
     num = 0;
     size = 4;
     lst = calloc(size, sizeof(*lst));
+    if (lst == NULL)
+	FatalError("make_str_list: could not allocate memory for lst: %s",
+		strerror(errno));
 
     do {
 	lst[num] = strdup(elem);
@@ -1496,10 +1499,10 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
-    /* Only onwer or trusted client can destroy the selection. */
+    /* Only owner or trusted client can destroy the selection. */
     if (rec->access_mode & DixDestroyAccess) {
 	if (!is_trusted_client(rec->client)
-	 || !check_ownership(subj, obj))
+	 && !check_ownership(subj, obj))
 	    goto deny;
     }
 
