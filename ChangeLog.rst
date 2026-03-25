@@ -5,8 +5,7 @@ ChangeLog
 0.3.2 -- 2026-03-21
 ===================
 
-Bug fix release
----------------
+**Bug fix release**
 
 * Fix condition logic in selection handling.
 * Fix minor issues and NULL pointer dereference.
@@ -14,8 +13,7 @@ Bug fix release
 0.3.1 -- 2026-03-20
 ===================
 
-Bug fix release
----------------
+**Bug fix release**
 
 * Fix crash if `TrustedClients` is not populated.
 * Fix minor issues, resource leaks, and undefined behavior.
