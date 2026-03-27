@@ -149,6 +149,20 @@ There are also cases that are handled separately: refer to `CLIPBOARD
 PROTECTION`_, `SELECTIONS HANDLING`_ and `SCREEN SHARING AND SCREEN
 CASTING`_ for more information.
 
+CLIENTS DOMAIN
+--------------
+
+Generally, X11 clients that run by the same process are treated by REXSec
+as *one* client. For Linux, this is extended to the following conditions
+in conjunction that if X11 clients were:
+
+* executed from the single binary
+* with the same UID
+* run in the same user namespace
+
+they are treated as *one* client. This decision was made because in modern desktop
+environments, applications are usually multi-process.
+
 CLIPBOARD PROTECTION
 --------------------
 
