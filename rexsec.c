@@ -533,6 +533,9 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
      || c2->pid <= 0)
 	return 0;
 
+    /* Assume that living clients with the same PID are run
+     * by one process, otherwise some of the clients could
+     * not be a living client */
     if (c1->pid == c2->pid)
 	return 1;
 
