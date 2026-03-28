@@ -108,9 +108,8 @@ Rexsec marks a client as trusted in the following cases:
 * the client executable name was defined in the list of trusted clients
   (see `CONFIGURATION`_) and there are no other conditions why rexsec
   should mark it as confined (see below);
-* if ``strict mode`` is disabled (see `CONFIGURATION`_), and the client
-  runs with the same EUID as the Window Manager's EUID (UID-based
-  separation).
+* If ``TrustUnsandboxed`` option is enabled, then every unsandboxed
+  client, i.e. client that are not confined, is trusted.
 
 All other clients are marked as *confined*.
 
@@ -289,12 +288,6 @@ SharedProps      A colon-separated list of shared properties.            *None*
                  Check ``Xorg.${DISPLAY#:}.log`` if you really need to
                  add them.
 
-Strict           If false, a UID-based separation is used instead of     ``True``
-                 client-based.
-
-                 This is deprecated, option and will be deleted in the
-                 future (i.e., it will be always ``True``).
-
 TrustedClients   A colon-separated list of executables whose clients     *None*
                  should be marked as trusted.
 
@@ -320,6 +313,15 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
                  ``X`` server process ``$PATH``. If it does not reside
                  in the ``$PATH``, you should provide a full pathname to
                  the executable.
+
+                 Linux-only for now.
+
+TrustUnsandboxed If enabled, then asec will treat every unsandboxed      ``False``
+                 application as trusted (see `TRUSTED CLIENTS`_).
+
+                 This option can be useful in case of run of complex
+                 Desktop Environment, and subject to be turning on by
+                 default in the future releases.
 
                  Linux-only for now.
 
