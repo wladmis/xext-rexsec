@@ -7,7 +7,7 @@
 
 #include "version.h"
 
-#define _free(x) if (x) { free(x); x = NULL; }
+#define _free(x) do { if (x) { free(x); x = NULL; } } while (0)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define X_REGISTRY_REQUEST
 #define _DEFAULT_SOURCE
@@ -47,8 +47,8 @@ enum {
 };
 
 #define REXSEC "REX11Security"
-#define DEBUG(...) if (loglevel >= LL_DEBUG) LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__)
-#define INFO(...) if (loglevel >= LL_INFO) LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__)
+#define DEBUG(...) do { if (loglevel >= LL_DEBUG) { LogMessage(X_INFO, REXSEC " (debug): " __VA_ARGS__); } } while (0)
+#define INFO(...) do { if (loglevel >= LL_INFO) { LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__); } } while (0)
 #define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
 int loglevel = 0;
@@ -117,9 +117,6 @@ typedef struct {
     /* The value of a global property can be read by any client.
      * All properties in the trusted mode or by Window Manager are global. */
     int wm; /* property is handled by window manager */
-
-    /* Selection-only. */
-    int is_faked;
 } APrivateRec, *APrivatePtr;
 
 #if __linux__
@@ -247,6 +244,9 @@ make_str_list(const char *str)
     num = 0;
     size = 4;
     lst = calloc(size, sizeof(*lst));
+    if (lst == NULL)
+	FatalError("make_str_list: could not allocate memory for lst: %s",
+		strerror(errno));
 
     do {
 	lst[num] = strdup(elem);
@@ -308,6 +308,11 @@ struct {
     int major, minor;
 #endif /* __linux__ */
 } SpyClient;
+
+struct {
+    int cid;
+    TimeStamp ts;
+} cur_selection;
 
 static int
 is_spyclient(AClientPrivPtr client_priv)
@@ -528,6 +533,9 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
      || c2->pid <= 0)
 	return 0;
 
+    /* Assume that living clients with the same PID are run
+     * by one process, otherwise some of the clients could
+     * not be a living client */
     if (c1->pid == c2->pid)
 	return 1;
 
@@ -1456,27 +1464,31 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	    rec->client->index,
 	    rec->access_mode);
 
+    int is_trusted = is_trusted_client(rec->client) || rec->client == serverClient;
+    int is_focused = is_client_focused(rec->client);
+    int is_permitted = is_trusted || is_focused;
+
     if (rec->access_mode & DixCreateAccess) {
 	obj->pid = subj->pid;
 	obj->cid = subj->cid;
 	obj->ts = subj->ts;
 
 	/* Only focused with recent input or trusted clients can own the real
-	 * selection, but let others own the faked one to not make them upset. */
-	if (is_client_focused(rec->client)
-	 || is_trusted_client(rec->client)
-	 || rec->client == serverClient) {
-	    obj->is_faked = 0;
-	} else {
-	    DEBUG("Selection: faked selection %d\n", subj->pid);
-	    obj->is_faked = 1;
+	 * selection, but let others own the private one to not make them upset. */
+	if (is_permitted) {
+	    cur_selection.cid = subj->cid;
+	    cur_selection.ts = subj->ts;
 	}
     } else {
-	int is_permitted =
-	    is_trusted_client(rec->client) || is_client_focused(rec->client);
-
 	while (pSel->selection != name
-	   || (obj->is_faked && is_permitted)
+	   /* If focused/trusted: skip everything that doesn't match the global stamp */
+	   || (is_permitted && (
+			   obj->cid != cur_selection.cid
+			|| obj->ts.months != cur_selection.ts.months
+			|| obj->ts.milliseconds != cur_selection.ts.milliseconds
+		   )
+	       )
+	   /* If unfocused: skip everything I don't own */
 	   || (!is_permitted && !check_ownership(subj, obj))) {
 	    if ((pSel = pSel->next) == NULL)
 		break;
@@ -1496,10 +1508,10 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     return;
 
 passthru:
-    /* Only onwer or trusted client can destroy the selection. */
+    /* Only owner or trusted client can destroy the selection. */
     if (rec->access_mode & DixDestroyAccess) {
 	if (!is_trusted_client(rec->client)
-	 || !check_ownership(subj, obj))
+	 && !check_ownership(subj, obj))
 	    goto deny;
     }
 
@@ -1644,4 +1656,4 @@ rexsecExtensionInit(void)
     }
 }
 
-/* vim:set tabstop=8 shiftwidth=4 noexpandtab: */
+/* vim:set tabstop=8 softtabstop=4 shiftwidth=4 noexpandtab: */
