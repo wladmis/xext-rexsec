@@ -7,7 +7,7 @@ EXTRA_CFLAGS += $(PKGCONF)
 EXTRA_CFLAGS += -fPIC -std=c99
 EXTRA_CFLAGS += -Wall -Werror
 
-SOURCES := rexsec.c Makefile README.rst
+SOURCES := rexsec.c Makefile README.rst ChangeLog.rst
 
 all: rexsec.so
 
