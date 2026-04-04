@@ -2,6 +2,14 @@
 ChangeLog
 =========
 
+0.3.4 -- 2026-04-04
+===================
+
+**Bug fix release**
+
+* Fix logical error in clipboard routing.
+* Fix rexsec.so permissions.
+* Improve documentation.
 
 0.3.3 -- 2026-03-26
 ===================
