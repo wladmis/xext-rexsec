@@ -51,6 +51,7 @@ enum {
 #define INFO(...) do { if (loglevel >= LL_INFO) { LogMessage(X_INFO, REXSEC " (info): " __VA_ARGS__); } } while (0)
 #define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
+int clipboard_timeout = 0;
 int loglevel = 0;
 int spy_mode = 0;
 
@@ -113,6 +114,7 @@ typedef struct {
     pid_t pid;
     int cid;
     TimeStamp ts;
+    TimeStamp clipboard_ts;
 
     /* Properties-only. */
     /* The value of a global property can be read by any client.
@@ -178,6 +180,7 @@ static XF86ModuleVersionInfo rexsecVerRec = {
 
 typedef enum {
     OPTION_ALLOWED_EXTS,
+    OPTION_CLIPBOARD_TIMEOUT,
     OPTION_LOGLEVEL,
     OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
@@ -191,6 +194,7 @@ typedef enum {
 
 static OptionInfoRec REXSecOptions[] = {
     {OPTION_ALLOWED_EXTS,	"AllowedExts",		OPTV_STRING,	{0},	FALSE},
+    {OPTION_CLIPBOARD_TIMEOUT,	"ClipboardTimeout",	OPTV_INTEGER,	{0},	FALSE},
     {OPTION_LOGLEVEL,		"LogLevel",		OPTV_INTEGER,	{0},	FALSE},
     {OPTION_PERMANENT,		"Permanent",		OPTV_BOOLEAN,	{0},	FALSE},
     {OPTION_SHARED_PROPS,	"SharedProps",		OPTV_STRING,	{0},	FALSE},
@@ -726,6 +730,16 @@ rexsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
     xf86ProcessOptions(-1, opts, REXSecOptions);
 
     xf86GetOptValInteger(REXSecOptions, OPTION_LOGLEVEL, &loglevel);
+    xf86GetOptValInteger(REXSecOptions, OPTION_CLIPBOARD_TIMEOUT, &clipboard_timeout);
+
+    if (clipboard_timeout < 0) {
+	LOG("rexsecSetup: incorrect value of ClipboardTimeout: %d: must be non-negative\n",
+	    clipboard_timeout);
+	clipboard_timeout = 0;
+    }
+
+    INFO("rexsecSetup: ClipboardTimeout is %d\n", clipboard_timeout);
+
     xf86GetOptValBool(REXSecOptions, OPTION_PERMANENT, &permanent);
     xf86GetOptValBool(REXSecOptions, OPTION_SPYMODE, &spy_mode);
     xf86GetOptValBool(REXSecOptions, OPTION_TRUSTUNSANDBOXED, &trust_unsandboxed);
@@ -1457,10 +1471,15 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
     int is_focused = is_client_focused(rec->client);
     int is_permitted = is_trusted || is_focused;
 
+    if (clipboard_timeout != 0)
+	UpdateCurrentTimeIf();
+
     if (rec->access_mode & DixCreateAccess) {
 	obj->pid = subj->pid;
 	obj->cid = subj->cid;
 	obj->ts = subj->ts;
+	if (clipboard_timeout != 0)
+	    obj->clipboard_ts = currentTime;
 
 	/* Only focused or trusted clients can own the current selection,
 	 * but let others own the private one to not make them upset. */
@@ -1470,6 +1489,9 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 	}
     } else {
 	while (pSel->selection != name
+	   || (clipboard_timeout != 0
+		&& ((currentTime.milliseconds - obj->clipboard_ts.milliseconds > clipboard_timeout)
+		    || currentTime.months != obj->clipboard_ts.months))
 	   /* If focused/trusted: skip everything that doesn't match the global stamp */
 	   || (is_permitted && (
 			   obj->cid != cur_selection.cid
@@ -1483,6 +1505,9 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 		break;
 	    obj = dixLookupPrivate(&pSel->devPrivates, asec_sel_key);
 	}
+
+	if (!pSel && clipboard_timeout != 0)
+	    INFO("Selection: clipboard timeout passed\n");
     }
 
     if (pSel) {
