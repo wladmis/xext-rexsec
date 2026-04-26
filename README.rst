@@ -330,7 +330,7 @@ TrustedClients   A colon-separated list of executables whose clients     *None*
 
                  Linux-only for now.
 
-TrustUnsandboxed If enabled, then asec will treat every unsandboxed      ``False``
+TrustUnsandboxed If enabled, then rexsec will treat every unsandboxed    ``False``
                  application as trusted (see `TRUSTED CLIENTS`_).
 
                  This option can be useful in case of run of complex
@@ -379,10 +379,8 @@ less transparent and all-permissive for X11 clients and restrict them,
 and I hope it can be useful for users who cannot switch to Wayland
 for some reason.
 
-I also have a couple of ideas for its improvement, like to make it able
-to allow screenshots or screencasts in certain conditions for confined
-clients (which is necessary for online video calls or streaming, for
-example), or system tray handling.
+I also have a couple of ideas for its improvement, but not sure if I
+will implement them (at last, X11 is deprecated now).
 
 Besides these, only code cleanup, refactoring, bug fixes and resolving
 runtime issues with different WMs and workflows are expected.
