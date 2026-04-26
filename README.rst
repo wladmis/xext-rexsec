@@ -279,6 +279,10 @@ AllowedExts      A colon-separated list of extra allowed extensions      *None*
 
                  You probably do not need to change it.
 
+ClipboardTimeout Time in milliseconds after which clipboard-type         ``0``
+                 selections (PRIMARY and CLIPBOARD) expire.  A value of
+                 0 means selections never expire.
+
 LogLevel         Log level: 0: default, 1: INFO, 2: DEBUG, 3: TRACE      ``0``
 
 Permanent        If false, rexsec stops working until a new WM starts.   ``True``
