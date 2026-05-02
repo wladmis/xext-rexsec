@@ -358,6 +358,10 @@ SpyMode          When enabled, allows temporarily granting a client an   ``False
                  ``Control-Alt-Shift-Equal (=)``.
                  It can be useful for screen sharing.
                  There can be only one client in the SpyMode at a time.
+
+SpyModeTimeout   Time in milliseconds after which SpyMode stops working. ``0``
+                 A value of 0 means it does not stop until explicitly
+                 disabled.
 ================ ======================================================= =============
 
 NOTE

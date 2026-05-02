@@ -54,6 +54,7 @@ enum {
 int clipboard_timeout = 0;
 int loglevel = 0;
 int spy_mode = 0;
+int spy_mode_timeout = 0;
 
 int trust_unsandboxed = 0;
 int trusted_uid = -1;
@@ -78,7 +79,6 @@ DevPrivateKeyRec asec_client_key_rec;
 #define asec_client_key (&asec_client_key_rec)
 typedef struct {
     int live;
-    int spymode;
     pid_t pid;
     int cid;
     int uid;
@@ -189,6 +189,7 @@ typedef enum {
     OPTION_TRUSTSUID,
     OPTION_TRUSTUNSANDBOXED,
     OPTION_SPYMODE,
+    OPTION_SPYMODE_TIMEOUT,
     THE_END_OF_OPTIONS
 } REXSecOpts;
 
@@ -199,6 +200,7 @@ static OptionInfoRec REXSecOptions[] = {
     {OPTION_PERMANENT,          "Permanent",            OPTV_BOOLEAN,   {0},    FALSE},
     {OPTION_SHARED_PROPS,       "SharedProps",          OPTV_STRING,    {0},    FALSE},
     {OPTION_SPYMODE,            "SpyMode",              OPTV_BOOLEAN,   {0},    FALSE},
+    {OPTION_SPYMODE_TIMEOUT,    "SpyModeTimeout",       OPTV_INTEGER,   {0},    FALSE},
 #if __linux__
     {OPTION_TRUSTEDCLIENTS,     "TrustedClients",       OPTV_STRING,    {0},    FALSE},
     {OPTION_TRUSTSGID,          "TrustSGID",            OPTV_BOOLEAN,   {0},    TRUE},
@@ -307,6 +309,7 @@ is_matched(const char *str, const char **list)
 struct {
     int on;
     int cid;
+    TimeStamp ts;
 #if __linux__
     ino_t ino, root_ino, userns;
     int uid;
@@ -322,13 +325,13 @@ struct {
 static int
 is_spyclient(AClientPrivPtr client_priv)
 {
-    if (client_priv->spymode)
-        return 1;
-
-#if __linux__
     if (!SpyClient.on)
         return 0;
 
+    if (client_priv->cid == SpyClient.cid)
+        goto check_timeout;
+
+#if __linux__
     if (client_priv->ino != SpyClient.ino
      || client_priv->userns != SpyClient.userns
      || client_priv->root_ino != SpyClient.root_ino
@@ -337,11 +340,23 @@ is_spyclient(AClientPrivPtr client_priv)
      || client_priv->uid != SpyClient.uid)
         return 0;
 
-    return 1;
+    goto check_timeout;
 #else /* ! __linux__ */
     return 0;
 #endif /* __linux__ */
 
+check_timeout:
+    if (spy_mode_timeout == 0)
+        return 1;
+
+    UpdateCurrentTimeIf();
+    if ((currentTime.milliseconds - SpyClient.ts.milliseconds > spy_mode_timeout)
+     || currentTime.months != SpyClient.ts.months) {
+        SpyClient.on = 0;
+        return 0;
+    }
+
+    return 1;
 }
 
 static int
@@ -742,6 +757,14 @@ rexsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
     xf86GetOptValBool(REXSecOptions, OPTION_PERMANENT, &permanent);
     xf86GetOptValBool(REXSecOptions, OPTION_SPYMODE, &spy_mode);
+    xf86GetOptValInteger(REXSecOptions, OPTION_SPYMODE_TIMEOUT, &spy_mode_timeout);
+
+    if (spy_mode_timeout < 0) {
+        LOG("rexsecSetup: incorrect value of SpyModeTimeout: %d: must be non-negative\n",
+            spy_mode_timeout);
+        spy_mode_timeout = 0;
+    }
+
     xf86GetOptValBool(REXSecOptions, OPTION_TRUSTUNSANDBOXED, &trust_unsandboxed);
 
 #if __linux__
@@ -982,7 +1005,6 @@ REXSecClientState(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ 
 
         case ClientStateGone:
             pClientPriv->live = 0;
-            pClientPriv->spymode = 0;
             if (pci->client->index == SpyClient.cid) {
                 SpyClient.cid = 0;
                 SpyClient.on = 0;
@@ -1598,7 +1620,8 @@ REXSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
     AClientPrivPtr client_priv = dixLookupPrivate(&fkbd->devPrivates, asec_client_key);
 
     if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask)) {
-        client_priv->spymode = 1;
+        UpdateCurrentTimeIf();
+        SpyClient.ts = currentTime;
         SpyClient.on = 1;
         SpyClient.cid = fkbd->index;
 #if __linux__
@@ -1612,17 +1635,8 @@ REXSecKeyAvailable(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__
         INFO("SpyMode: client #%d is in spymode now\n", SpyClient.cid);
     } else if (rec->event->u.keyButtonPointer.state == (ControlMask|Mod1Mask|ShiftMask)
             && is_spyclient(client_priv)) {
-        client_priv->spymode = 0;
         SpyClient.on = 0;
-#if __linux__
-        if (clients[SpyClient.cid] != NULL) {
-            client_priv = dixLookupPrivate(&clients[SpyClient.cid]->devPrivates, asec_client_key);
-            if (is_spyclient(client_priv)) {
-                client_priv->spymode = 0;
-            }
-        }
         SpyClient.cid = 0;
-#endif /* __linux__ */
         INFO("SpyMode: client #%d is out of spymode now\n", fkbd->index);
     }
 }
