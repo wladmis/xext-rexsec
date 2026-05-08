@@ -220,6 +220,15 @@ client read-only access to all resources. If this option is enabled, you
 can give the focused client that ability by pressing `CTRL-ALT-=`, and
 revoke it by pressing `CTRL-ALT-SHIFT-=`.
 
+DOWNLOAD THE SOURCE CODE
+========================
+
+The source code is located here:
+`https://github.com/wladmis/xext-rexsec <https://github.com/wladmis/xext-rexsec>`_,
+you can check for the new releases here:
+`https://github.com/wladmis/xext-rexsec/releases,
+<https://github.com/wladmis/xext-rexsec/releases>`_.
+
 BUILD AND INSTALL
 =================
 
