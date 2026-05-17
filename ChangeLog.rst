@@ -2,6 +2,22 @@
 ChangeLog
 =========
 
+0.4.0 -- 2026-05-18
+===================
+
+**0.4.0**
+
+* New options:
+
+  * ``TrustUnsandboxed`` — if enabled, treat all unsandboxed apps as trusted;
+  * ``ClipboardTimeout`` — expire primary selection and clipboard content after
+    specified timeout;
+  * ``SpyModeTimeout`` — disable *SpyMode* after specified timeout.
+
+* Remove the ``Strict`` option as it conflicts with ``TrustUnsandboxed``.
+* Add the module destructor.
+* Fix the README.rst file.
+
 0.3.4.3 -- 2026-04-04
 =====================
 
