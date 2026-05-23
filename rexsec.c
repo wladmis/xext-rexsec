@@ -52,6 +52,7 @@ enum {
 #define LOG(...) LogMessage(X_INFO, REXSEC ": " __VA_ARGS__)
 
 int clipboard_timeout = 0;
+int isolate_clipboard = 0;
 int loglevel = 0;
 int spy_mode = 0;
 int spy_mode_timeout = 0;
@@ -182,6 +183,7 @@ typedef enum {
     OPTION_ALLOWED_EXTS,
     OPTION_CLIPBOARD_TIMEOUT,
     OPTION_LOGLEVEL,
+    OPTION_ISOLATE_CLIPBOARD,
     OPTION_PERMANENT,
     OPTION_SHARED_PROPS,
     OPTION_TRUSTEDCLIENTS,
@@ -197,6 +199,7 @@ static OptionInfoRec REXSecOptions[] = {
     {OPTION_ALLOWED_EXTS,       "AllowedExts",          OPTV_STRING,    {0},    FALSE},
     {OPTION_CLIPBOARD_TIMEOUT,  "ClipboardTimeout",     OPTV_INTEGER,   {0},    FALSE},
     {OPTION_LOGLEVEL,           "LogLevel",             OPTV_INTEGER,   {0},    FALSE},
+    {OPTION_ISOLATE_CLIPBOARD,  "IsolateClipboard",     OPTV_BOOLEAN,   {0},    FALSE},
     {OPTION_PERMANENT,          "Permanent",            OPTV_BOOLEAN,   {0},    FALSE},
     {OPTION_SHARED_PROPS,       "SharedProps",          OPTV_STRING,    {0},    FALSE},
     {OPTION_SPYMODE,            "SpyMode",              OPTV_BOOLEAN,   {0},    FALSE},
@@ -755,6 +758,7 @@ rexsecSetup(__attribute__ ((unused)) void *module, void *opts, __attribute__ ((u
 
     INFO("rexsecSetup: ClipboardTimeout is %d\n", clipboard_timeout);
 
+    xf86GetOptValBool(REXSecOptions, OPTION_ISOLATE_CLIPBOARD, &isolate_clipboard);
     xf86GetOptValBool(REXSecOptions, OPTION_PERMANENT, &permanent);
     xf86GetOptValBool(REXSecOptions, OPTION_SPYMODE, &spy_mode);
     xf86GetOptValInteger(REXSecOptions, OPTION_SPYMODE_TIMEOUT, &spy_mode_timeout);
@@ -1491,7 +1495,7 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
 
     int is_trusted = is_trusted_client(rec->client) || rec->client == serverClient;
     int is_focused = is_client_focused(rec->client);
-    int is_permitted = is_trusted || is_focused;
+    int is_permitted = is_focused || (!isolate_clipboard && is_trusted);
 
     if (clipboard_timeout != 0)
         UpdateCurrentTimeIf();
