@@ -580,6 +580,15 @@ are_equal_clients(AClientPrivPtr c1, AClientPrivPtr c2)
     return 0;
 }
 
+static void
+label_resource(APrivatePtr res, AClientPrivPtr client)
+{
+    res->uid = client->uid;
+    res->pid = client->pid;
+    res->cid = client->cid;
+    res->ts  = client->ts;
+}
+
 static int
 check_ownership(AClientPrivPtr client, APrivatePtr selection)
 {
@@ -1091,9 +1100,7 @@ REXSecResourceAccess(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute
         (rec->access_mode & DixCreateAccess)) {
         WindowPtr pWin = (WindowPtr) rec->res;
         APrivatePtr wobj = dixLookupPrivate(&pWin->devPrivates, asec_window_key);
-
-        wobj->uid = subj->uid;
-        wobj->pid = subj->pid;
+        label_resource(wobj, subj);
     }
 
     /* Similar to Xext/security.c */
@@ -1279,10 +1286,7 @@ REXSecProperty(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((u
              || rec->client == serverClient)
                 obj->wm = 1;
 
-            obj->pid = subj->pid;
-            obj->uid = subj->uid;
-            obj->cid = subj->cid;
-            obj->ts = subj->ts;
+            label_resource(obj, subj);
         }
 
         if (check_ownership(subj, obj))
@@ -1497,9 +1501,7 @@ REXSecSelection(__attribute__ ((unused)) CallbackListPtr *pcbl, __attribute__ ((
         UpdateCurrentTimeIf();
 
     if (rec->access_mode & DixCreateAccess) {
-        obj->pid = subj->pid;
-        obj->cid = subj->cid;
-        obj->ts = subj->ts;
+        label_resource(obj, subj);
         if (clipboard_timeout != 0)
             obj->clipboard_ts = currentTime;
 
@@ -1553,9 +1555,7 @@ passthru:
 
     /* Mark newly created selection. */
     if (rec->access_mode & DixCreateAccess) {
-        obj->pid = subj->pid;
-        obj->cid = subj->cid;
-        obj->ts = subj->ts;
+        label_resource(obj, subj);
         return;
     }
 
