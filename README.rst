@@ -171,7 +171,7 @@ write to the clipboards. This is quite a simple technique but still it
 can protect from some abuses.
 
 Trusted clients have unlimited access to both primary selection and
-clipboard.
+clipboard unless the IsolateClipboard option is enabled.
 
 If you want to use a clipboard manager, start it in insecure mode to
 make it trusted, or add it to the list of trusted clients (see
@@ -291,6 +291,11 @@ AllowedExts      A colon-separated list of extra allowed extensions      *None*
 ClipboardTimeout Time in milliseconds after which clipboard-type         ``0``
                  selections (PRIMARY and CLIPBOARD) expire.  A value of
                  0 means selections never expire.
+
+IsolateClipboard If ``True``, use more strict isolation for              ``False``
+                 clipboard-type selections (PRIMARY and CLIPBOARD), so
+                 only *focused* clients (and selection owners) can have
+                 access to them.
 
 LogLevel         Log level: 0: default, 1: INFO, 2: DEBUG, 3: TRACE      ``0``
 
