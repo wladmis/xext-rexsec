@@ -35,8 +35,16 @@ xext-rexsec-%.tar.gz: $(SOURCES) VERSION
 	@test "$$(cat VERSION)" = "$*"
 	tar -czf $@ $^
 
-tarball: VERSION
-	@$(MAKE) xext-rexsec-$(shell cat VERSION).tar.gz
+check-release-tags:
+	@set -- $$($(GIT) tag --points-at HEAD); \
+	if [ "$$#" -gt 1 ]; then \
+		echo "Error: multiple tags point at HEAD:" >&2; \
+		printf '  %s\n' "$$@" >&2; \
+		exit 1; \
+	fi
+
+tarball: check-release-tags VERSION
+	@$(MAKE) xext-rexsec-$$(cat VERSION).tar.gz
 
 install: rexsec.so
 	install -m644 -pD rexsec.so $(DESTDIR)$(XORGEXTDIR)/rexsec.so
@@ -47,4 +55,4 @@ clean:
 distclean: clean
 	-rm rexsec.so
 
-.PHONY: all clean distclean install tarball
+.PHONY: all check-release-tags clean distclean install tarball
